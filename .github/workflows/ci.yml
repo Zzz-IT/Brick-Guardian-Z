@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck zip unzip
+
+      - name: Shellcheck production scripts
+        run: |
+          shellcheck \
+            customize.sh \
+            post-fs-data.sh \
+            service.sh \
+            boot-completed.sh \
+            action.sh \
+            uninstall.sh \
+            scripts/*.sh \
+            || true
+
+      - name: Run tests
+        run: bash tests/run_all.sh
+
+      - name: Build release zip
+        run: bash tools/build_zip.sh
+
+      - name: Check zip output
+        run: |
+          test -n "$(ls dist/*.zip)"
+          unzip -l dist/*.zip

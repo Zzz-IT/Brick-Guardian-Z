@@ -194,10 +194,10 @@ handle_bootloop() {
   local script=$(get_state "testing_script")
   if [ -n "$script" ]; then
     case "$script" in
-      "$ADB_ROOT/service.d/"* | "$ADB_ROOT/post-fs-data.d/"* | "$ADB_ROOT/boot-completed.d/"*)
+      "$ADB_ROOT/service.d/"* | "$ADB_ROOT/boot-completed.d/"*)
         ;;
       *)
-        log_error "testing_script 状态非法，已清除: $script"
+        log_error "testing_script 状态非法或属于早期脚本，已清除: $script"
         _clear_state_unlocked "testing_script"
         release_lock
         return 0

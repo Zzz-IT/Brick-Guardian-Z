@@ -19,7 +19,35 @@
 > BOOT_TIMEOUT_SEC=600 # 超时时间
 > ```
 - 🧹 **无 System 挂载**：默认包含 `skip_mount` 标识，完全无系统修改，甚至自身的文件操作也高度克制。
-- 💼 **旧版无缝迁移**：安装即自动接管旧版 `magisk-brick-guardian`，安全接管原有的白名单与禁用状态，隔离旧版的风险文件（如被挟持的 `modules_update.bak`）。
+- 💼 **旧版遗留影响清理**：本模块不会继承旧版白名单、健康快照或历史判断状态。首次健康启动后，它只会清理旧版可能遗留的 modules_update.bak，并为旧版可能留下的 disabled 模块或脚本权限问题生成逐项恢复队列。
+
+## 设计边界
+
+KSU Safe Guardian 不检测 OTA、A/B slot、Virtual A/B、HyperOS、MIUI、系统 fingerprint 或 ROM 专属属性。
+
+所有慢启动场景统一由以下机制处理：
+
+- `BOOT_TIMEOUT_SEC`
+- 连续失败次数
+- 精准嫌疑模块识别
+- 白名单保护
+- 兜底禁用非白名单模块
+
+这样做是为了降低 ROM 差异和系统属性不稳定带来的误判。
+
+## 不会做的事
+
+本模块不会：
+
+- 联网下载或执行任何代码
+- 提供在线更新检查
+- 修改 system/vendor/product 分区
+- 接管 `/data/adb/modules_update`
+- 删除 `package-restrictions.xml`
+- 继承旧版白名单
+- 继承旧版健康快照
+- 自动恢复早期全局脚本目录中的脚本
+- 对全局脚本目录执行批量 `chmod 000`
 
 ## 兼容性
 

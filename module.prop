@@ -1,6 +1,6 @@
 id=ksu-safe-guardian
-name=KSU Safe Guardian (安全守护)
+name=KSU Safe Guardian
 version=v1.0.0
 versionCode=10000
 author=Zzz
-description=优先支持 KernelSU 的自动化防启动卡死（Bootloop）保护与旧版 Brick Guardian 遗留问题修复。无在线更新。无系统修改。
+description=KSU-first bootloop protection module. No online update, no system modification, targeted module quarantine only.

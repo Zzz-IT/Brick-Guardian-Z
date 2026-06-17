@@ -6,17 +6,20 @@ set -euo pipefail
 setup_env
 . "$MODDIR/scripts/lib.sh"
 
-# 准备 default.conf
-cat > "$MODDIR/config/default.conf" <<EOF
+cat > "$MODDIR/config/default.conf" <<EOF_CONF
 # 测试注释
 BOOT_TIMEOUT_SEC=600
   # 缩进注释
 BROAD_RECOVERY_THRESHOLD=6
 
-ENABLED=1
-EOF
+# 带空格的写法
+SELF_DISABLE_THRESHOLD = 8
 
-# 测试是否生效
+# 明确不支持 inline comment
+INLINE_COMMENT_TEST=600 # bad
+ENABLED=1
+EOF_CONF
+
 if [ "$(get_config BOOT_TIMEOUT_SEC)" = "600" ]; then
   echo "PASS: BOOT_TIMEOUT_SEC 正确"
 else
@@ -31,11 +34,24 @@ else
   exit 1
 fi
 
-# 测试 fallback
+if [ "$(get_config SELF_DISABLE_THRESHOLD)" = "8" ]; then
+  echo "PASS: KEY = VALUE 格式被正确解析"
+else
+  echo "FAIL: KEY = VALUE 格式解析失败"
+  exit 1
+fi
+
 if [ "$(get_config NOT_EXIST 99)" = "99" ]; then
   echo "PASS: fallback 默认值正确生效"
 else
   echo "FAIL: fallback 失败"
+  exit 1
+fi
+
+if [ "$(get_config INLINE_COMMENT_TEST)" != "600" ]; then
+  echo "PASS: inline comment 未被错误当成纯数值支持"
+else
+  echo "FAIL: inline comment 被错误解析成纯数值"
   exit 1
 fi
 
