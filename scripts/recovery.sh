@@ -38,9 +38,12 @@ _mark_testing_success_unlocked() {
 }
 
 handle_healthy_boot() {
+  local need_first_run=0
+
   acquire_lock
 
-  local boot_id="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"
+  local boot_id_file="${MOCK_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}"
+  local boot_id="$(cat "$boot_id_file" 2>/dev/null)"
   local decision="$(get_state "decision_$boot_id")"
 
   if [ -n "$boot_id" ] && [ -n "$decision" ]; then
@@ -57,11 +60,26 @@ handle_healthy_boot() {
 
   # 检查是否存在待处理的首次清理任务
   if [ -f "$MODDIR/state/first_run_repair_pending" ]; then
+    _set_state_unlocked "first_run_repair_running" "1"
+    need_first_run=1
+  fi
+  
+  release_lock
+
+  # 在锁外执行耗时的 I/O 擦屁股操作，防止长时间阻塞
+  if [ "$need_first_run" = "1" ]; then
     log_info "正在执行首次擦屁股清理任务..."
     . "$MODDIR/scripts/first_run_repair.sh"
     run_first_run_repair
+    
+    acquire_lock
     _clear_state_unlocked "first_run_repair_pending"
+    _clear_state_unlocked "first_run_repair_running"
+    release_lock
   fi
+
+  # 重新加锁处理后续快速状态机操作
+  acquire_lock
 
   _mark_testing_success_unlocked
 
@@ -90,7 +108,7 @@ get_suspect_modules() {
     return 1
   fi
 
-  for dir in /data/adb/modules/*; do
+  for dir in "$ADB_ROOT/modules"/*; do
     [ -d "$dir" ] || continue
     local id="${dir##*/}"
     is_guardian_self "$id" && continue
@@ -125,7 +143,8 @@ get_suspect_modules() {
 handle_bootloop() {
   acquire_lock
 
-  local boot_id="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"
+  local boot_id_file="${MOCK_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}"
+  local boot_id="$(cat "$boot_id_file" 2>/dev/null)"
   local decision="$(get_state "decision_$boot_id")"
 
   if [ -n "$boot_id" ] && [ -n "$decision" ]; then
@@ -190,7 +209,7 @@ handle_bootloop() {
         is_valid_module_id "$id" || continue
         is_guardian_self "$id" && continue
         if ! is_whitelisted "$id"; then
-          touch "/data/adb/modules/$id/disable"
+          touch "$ADB_ROOT/modules/$id/disable"
           echo "$id" >> "$MODDIR/state/guardian_disabled_modules.list"
           log_info "精准禁用嫌疑模块: $id"
           disabled_any=1
@@ -219,7 +238,7 @@ handle_bootloop() {
   # 4. 如果精准禁用未生效，执行大范围禁用逻辑
   if [ "$attempts" -ge "$broad_threshold" ] && [ "$(get_config ALLOW_BROAD_DISABLE 1)" = "1" ]; then
     log_error "达到大范围禁用阈值。正在禁用所有非白名单模块。"
-    for dir in /data/adb/modules/*; do
+    for dir in "$ADB_ROOT/modules"/*; do
       [ -d "$dir" ] || continue
       local id="${dir##*/}"
       

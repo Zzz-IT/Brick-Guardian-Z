@@ -8,10 +8,10 @@ fi
 . "$MODDIR/scripts/lib.sh"
 . "$MODDIR/scripts/state.sh"
 
-GLOBAL_QUARANTINE="/data/adb/ksu-safe-guardian/quarantine"
+GLOBAL_QUARANTINE="$ADB_ROOT/ksu-safe-guardian/quarantine"
 
 repair_modules_update_bak() {
-  local bak="/data/adb/modules_update.bak"
+  local bak="$ADB_ROOT/modules_update.bak"
   [ -d "$bak" ] || return 0
 
   mkdir -p "$GLOBAL_QUARANTINE"
@@ -30,8 +30,8 @@ run_first_run_repair() {
 
   # 归档旧的状态日志记录，只作为历史参考，不参与决策
   mkdir -p "$GLOBAL_QUARANTINE/legacy-state"
-  cp -af /data/adb/modules/magisk-brick-guardian/startup_count.log "$GLOBAL_QUARANTINE/legacy-state/" 2>/dev/null
-  cp -af /data/adb/modules/magisk-brick-guardian/rescue_count.log "$GLOBAL_QUARANTINE/legacy-state/" 2>/dev/null
+  cp -af "$ADB_ROOT/modules/magisk-brick-guardian/startup_count.log" "$GLOBAL_QUARANTINE/legacy-state/" 2>/dev/null
+  cp -af "$ADB_ROOT/modules/magisk-brick-guardian/rescue_count.log" "$GLOBAL_QUARANTINE/legacy-state/" 2>/dev/null
 
   # 隔离被挟持的模块更新备份目录
   if [ "$(get_config AUTO_QUARANTINE_MODULES_UPDATE_BAK 1)" = "1" ]; then

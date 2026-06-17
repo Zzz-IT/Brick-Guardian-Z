@@ -10,7 +10,13 @@ acquire_lock() {
   local now="$(date +%s)"
   while ! mkdir "$lockdir" 2>/dev/null; do
     local old="$(cat "$lockdir/time" 2>/dev/null)"
-    if [ -n "$old" ] && [ $((now - old)) -gt 60 ]; then
+    case "$old" in
+      ''|*[!0-9]*)
+        rm -rf "$lockdir"
+        continue
+        ;;
+    esac
+    if [ $((now - old)) -gt 60 ]; then
       rm -rf "$lockdir"
       continue
     fi

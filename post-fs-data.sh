@@ -12,7 +12,8 @@ log_info() {
 mkdir -p "$MODDIR/state" "$MODDIR/logs" 2>/dev/null
 
 # 无论任何启动条件，首先记录早期启动尝试
-boot_id="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"
+boot_id_file="${MOCK_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}"
+boot_id="$(cat "$boot_id_file" 2>/dev/null)"
 last_seen="$(cat "$MODDIR/state/last_seen_boot_id" 2>/dev/null)"
 
 if [ -n "$boot_id" ] && [ "$boot_id" != "$last_seen" ]; then

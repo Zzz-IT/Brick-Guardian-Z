@@ -1,5 +1,8 @@
 #!/system/bin/sh
-# KSU Safe Guardian lib.sh
+# KSU Safe Guardian 核心库函数
+
+# 测试环境注入桩
+export ADB_ROOT="${ADB_ROOT:-/data/adb}"
 
 if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"

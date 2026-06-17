@@ -13,9 +13,9 @@ MODDIR=${0%/*}
   
   [ "$(get_config ENABLED 1)" = "1" ] || exit 0
 
-  local curr_ver="$(getprop ro.system.build.version.incremental)"
-  local prev_ver="$(get_state "last_system_version")"
-  local timeout
+  curr_ver="$(getprop ro.system.build.version.incremental)"
+  prev_ver="$(get_state "last_system_version")"
+  timeout=""
 
   if [ -n "$prev_ver" ] && [ "$curr_ver" != "$prev_ver" ]; then
     log_info "检测到系统版本更新 (OTA)。应用较长的超时时间..."

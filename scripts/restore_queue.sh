@@ -42,7 +42,7 @@ build_module_restore_queue() {
   local restore_unknown="$(get_config RESTORE_UNKNOWN_DISABLED_MODULES 0)"
   local guardian_disabled="$MODDIR/state/guardian_disabled_modules.list"
 
-  for dir in /data/adb/modules/*; do
+  for dir in "$ADB_ROOT/modules"/*; do
     [ -d "$dir" ] || continue
     local id="${dir##*/}"
 
@@ -91,7 +91,7 @@ build_script_restore_queue() {
     return 0
   fi
 
-  for d in /data/adb/service.d /data/adb/boot-completed.d; do
+  for d in "$ADB_ROOT/service.d" "$ADB_ROOT/boot-completed.d"; do
     [ -d "$d" ] || continue
 
     for f in "$d"/*; do
@@ -103,7 +103,7 @@ build_script_restore_queue() {
     done
   done
 
-  for d in /data/adb/post-fs-data.d /data/adb/post-mount.d; do
+  for d in "$ADB_ROOT/post-fs-data.d" "$ADB_ROOT/post-mount.d"; do
     [ -d "$d" ] || continue
 
     for f in "$d"/*; do
@@ -127,8 +127,8 @@ restore_one_module_for_testing() {
   local id="$(head -n 1 "$queue" | awk -F '\t' '{print $2}')"
   [ -n "$id" ] || return 0
 
-  if [ -f "/data/adb/modules/$id/disable" ]; then
-    rm -f "/data/adb/modules/$id/disable"
+  if [ -f "$ADB_ROOT/modules/$id/disable" ]; then
+    rm -f "$ADB_ROOT/modules/$id/disable"
     _set_state_unlocked "testing_module" "$id"
     sed -i '1d' "$queue"
     log_info "已恢复测试模块（将在下一次启动时验证）: $id"
