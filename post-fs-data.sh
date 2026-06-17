@@ -9,6 +9,9 @@ log_info() {
 }
 
 # 早期追踪 Boot ID 以便即使卡死在 post-fs-data 后也能计数
+mkdir -p "$MODDIR/state" "$MODDIR/logs" 2>/dev/null
+
+# 无论任何启动条件，首先记录早期启动尝试
 boot_id="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"
 last_seen="$(cat "$MODDIR/state/last_seen_boot_id" 2>/dev/null)"
 

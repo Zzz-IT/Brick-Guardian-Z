@@ -65,6 +65,11 @@ handle_healthy_boot() {
 
   _mark_testing_success_unlocked
 
+  local curr_ver="$(getprop ro.system.build.version.incremental)"
+  if [ -n "$curr_ver" ]; then
+    _set_state_unlocked "last_system_version" "$curr_ver"
+  fi
+
   # 保存当前健康的模块快照
   if [ -f "$MODDIR/scripts/restore_queue.sh" ]; then
     . "$MODDIR/scripts/restore_queue.sh"
@@ -88,6 +93,7 @@ get_suspect_modules() {
   for dir in /data/adb/modules/*; do
     [ -d "$dir" ] || continue
     local id="${dir##*/}"
+    is_guardian_self "$id" && continue
     [ -f "$dir/module.prop" ] || continue
     [ -f "$dir/disable" ] && continue
 
@@ -128,6 +134,11 @@ handle_bootloop() {
   fi
 
   if [ -n "$boot_id" ]; then
+    if [ "$(get_state "boot_completed_seen_$boot_id")" = "1" ]; then
+      log_warn "Service 超时，但检测到 boot-completed 已执行，取消 Bootloop 判定。"
+      release_lock
+      return 0
+    fi
     _set_state_unlocked "decision_$boot_id" "bootloop"
   fi
 

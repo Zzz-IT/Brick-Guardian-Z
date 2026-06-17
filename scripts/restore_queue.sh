@@ -58,6 +58,13 @@ build_module_restore_queue() {
       is_guardian_disabled=1
     fi
 
+    # 首次清理阶段的特权：如果存在首次清理标记且开启了 FIRST_RUN_RESTORE，则允许恢复未知 disable
+    if [ -f "$MODDIR/state/first_run_repair_pending" ] || [ -f "$MODDIR/state/first_run_repair_running" ]; then
+      if [ "$(get_config FIRST_RUN_RESTORE_UNKNOWN_DISABLED_MODULES 1)" = "1" ]; then
+        restore_unknown=1
+      fi
+    fi
+
     # 如果不是我们禁用的，且用户未开启未知全量恢复，则不加入自动恢复队列
     if [ "$is_guardian_disabled" = "0" ] && [ "$restore_unknown" != "1" ]; then
       continue

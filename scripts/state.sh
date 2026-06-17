@@ -7,16 +7,18 @@ fi
 
 acquire_lock() {
   local lockdir="$MODDIR/state/.lock"
-  local timeout=10
-  local elapsed=0
+  local now="$(date +%s)"
   while ! mkdir "$lockdir" 2>/dev/null; do
-    sleep 1
-    elapsed=$((elapsed + 1))
-    if [ "$elapsed" -ge "$timeout" ]; then
-      # 锁超时，强行删除旧锁
+    local old="$(cat "$lockdir/time" 2>/dev/null)"
+    if [ -n "$old" ] && [ $((now - old)) -gt 60 ]; then
       rm -rf "$lockdir"
+      continue
     fi
+    sleep 1
+    now="$(date +%s)"
   done
+  echo "$$" > "$lockdir/pid"
+  date +%s > "$lockdir/time"
 }
 
 release_lock() {
