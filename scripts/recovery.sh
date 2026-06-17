@@ -37,6 +37,46 @@ mark_testing_success() {
   set_state "boot_attempts" "0"
 }
 
+handle_healthy_boot() {
+  acquire_lock
+
+  local boot_id="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"
+  local processed_boot="$(get_state "last_processed_healthy_boot")"
+
+  if [ -n "$boot_id" ] && [ "$boot_id" = "$processed_boot" ]; then
+    # 当前启动已经处理过健康回调，防止 service 和 boot-completed 并发执行重复逻辑
+    release_lock
+    return 0
+  fi
+
+  log_info "系统健康，开始执行健康的守护任务。 (Boot ID: $boot_id)"
+  
+  # 标记本次启动的健康回调已处理
+  if [ -n "$boot_id" ]; then
+    atomic_write_state "last_processed_healthy_boot" "$boot_id"
+  fi
+
+  # 检查是否存在待处理的迁移任务
+  if [ -f "$MODDIR/state/migration_pending" ]; then
+    log_info "正在执行旧版修复与迁移任务..."
+    . "$MODDIR/scripts/legacy_repair.sh"
+    run_legacy_repair
+    rm -f "$MODDIR/state/migration_pending"
+  fi
+
+  mark_testing_success
+
+  # 保存当前健康的模块快照
+  if [ -f "$MODDIR/scripts/restore_queue.sh" ]; then
+    . "$MODDIR/scripts/restore_queue.sh"
+    save_good_snapshot
+    # 尝试恢复下一项
+    restore_next_item
+  fi
+
+  release_lock
+}
+
 get_suspect_modules() {
   local suspect_list="$MODDIR/state/suspect_modules.tsv"
   : > "$suspect_list"
@@ -78,7 +118,10 @@ get_suspect_modules() {
 }
 
 handle_bootloop() {
+  acquire_lock
   set_state "last_health_status" "bootloop"
+  release_lock
+  
   local attempts=$(increment_state "boot_attempts")
   increment_state "rescue_count"
 

@@ -34,6 +34,11 @@ build_module_restore_queue() {
   local queue="$MODDIR/state/module_restore.queue"
   : > "$queue"
 
+  # 如果全局开关关闭，不生成恢复队列
+  if [ "$(get_config AUTO_RESTORE_DISABLED_MODULES 1)" != "1" ]; then
+    return 0
+  fi
+
   local legacy_good="$MODDIR/quarantine/legacy/good_modules.list"
 
   for dir in /data/adb/modules/*; do
@@ -64,6 +69,11 @@ build_module_restore_queue() {
 build_script_restore_queue() {
   local queue="$MODDIR/state/script_restore.queue"
   : > "$queue"
+
+  # 如果全局开关关闭，不生成恢复队列
+  if [ "$(get_config AUTO_RESTORE_LATE_GLOBAL_SCRIPTS 1)" != "1" ]; then
+    return 0
+  fi
 
   for d in /data/adb/service.d /data/adb/boot-completed.d; do
     [ -d "$d" ] || continue
@@ -97,7 +107,8 @@ restore_one_module_for_testing() {
   [ -f "$testing" ] && return 0
   [ -s "$queue" ] || return 0
 
-  local id="$(head -n 1 "$queue" | awk '{print $2}')"
+  # 使用 awk 处理制表符
+  local id="$(head -n 1 "$queue" | awk -F '\t' '{print $2}')"
   [ -n "$id" ] || return 0
 
   if [ -f "/data/adb/modules/$id/disable" ]; then
@@ -116,8 +127,9 @@ restore_one_script_for_testing() {
   [ -f "$testing" ] && return 0
   [ -s "$queue" ] || return 0
 
-  local path="$(head -n 1 "$queue" | cut -f2)"
-  local mode="$(head -n 1 "$queue" | cut -f3)"
+  # 使用 awk 处理带有制表符分隔的行，防止空格被吞或解析错误
+  local path="$(head -n 1 "$queue" | awk -F '\t' '{print $2}')"
+  local mode="$(head -n 1 "$queue" | awk -F '\t' '{print $3}')"
 
   [ -e "$path" ] || {
     sed -i '1d' "$queue"

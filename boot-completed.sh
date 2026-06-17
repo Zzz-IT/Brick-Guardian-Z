@@ -10,18 +10,5 @@ MODDIR=${0%/*}
 
 log_info "boot-completed 阶段已确认执行"
 
-set_state "last_health_status" "healthy"
-set_state "boot_attempts" "0"
-
-# 保存当前健康的模块快照
-if [ -f "$MODDIR/scripts/restore_queue.sh" ]; then
-  . "$MODDIR/scripts/restore_queue.sh"
-  save_good_snapshot
-fi
-
-mark_testing_success
-
-# 尝试恢复下一项
-if [ -f "$MODDIR/scripts/restore_queue.sh" ]; then
-  restore_next_item
-fi
+# 由统一回调函数处理，内置并发锁与已处理标志，防止与 service 重复执行
+handle_healthy_boot

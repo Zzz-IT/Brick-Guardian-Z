@@ -6,15 +6,28 @@ if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 fi
 
+rotate_log() {
+  local log_file="$MODDIR/logs/guardian.log"
+  if [ -f "$log_file" ]; then
+    local size=$(stat -c %s "$log_file" 2>/dev/null || echo 0)
+    if [ "$size" -gt 512000 ]; then
+      mv -f "$log_file" "$log_file.bak"
+    fi
+  fi
+}
+
 log_info() {
+  rotate_log
   echo "[$(date +'%Y-%m-%d %H:%M:%S')] [INFO] $1" >> "$MODDIR/logs/guardian.log"
 }
 
 log_warn() {
+  rotate_log
   echo "[$(date +'%Y-%m-%d %H:%M:%S')] [WARN] $1" >> "$MODDIR/logs/guardian.log"
 }
 
 log_error() {
+  rotate_log
   echo "[$(date +'%Y-%m-%d %H:%M:%S')] [ERROR] $1" >> "$MODDIR/logs/guardian.log"
 }
 
