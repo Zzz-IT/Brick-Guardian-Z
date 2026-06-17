@@ -177,9 +177,10 @@ handle_bootloop() {
     if [ -s "$suspect_list" ]; then
       while read id; do
         is_valid_module_id "$id" || continue
-        [ "$id" = "ksu-safe-guardian" ] && continue
+        is_guardian_self "$id" && continue
         if ! is_whitelisted "$id"; then
           touch "/data/adb/modules/$id/disable"
+          echo "$id" >> "$MODDIR/state/guardian_disabled_modules.list"
           log_info "精准禁用嫌疑模块: $id"
           disabled_any=1
         fi
@@ -212,12 +213,13 @@ handle_bootloop() {
       local id="${dir##*/}"
       
       is_valid_module_id "$id" || continue
-      [ "$id" = "ksu-safe-guardian" ] && continue
+      is_guardian_self "$id" && continue
       [ -f "$dir/remove" ] && continue
       [ -f "$dir/disable" ] && continue
 
       if ! is_whitelisted "$id"; then
         touch "$dir/disable"
+        echo "$id" >> "$MODDIR/state/guardian_disabled_modules.list"
         log_info "大范围禁用: $id"
       fi
     done

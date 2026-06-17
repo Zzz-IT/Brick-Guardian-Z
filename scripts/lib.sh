@@ -56,6 +56,11 @@ is_whitelisted() {
   return 1
 }
 
+is_guardian_self() {
+  local id="$1"
+  [ "$id" = "ksu-safe-guardian" ] || [ "$id" = "magisk-brick-guardian" ]
+}
+
 is_valid_module_id() {
   local id="$1"
   echo "$id" | grep -Eq '^[a-zA-Z][a-zA-Z0-9._-]+$'
