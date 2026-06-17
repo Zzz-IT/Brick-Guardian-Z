@@ -18,7 +18,14 @@ fi
 fail_count=0
 pass_count=0
 skip_count=0
-ALLOW_TEST_SKIP="${ALLOW_TEST_SKIP:-0}"
+ALLOW_TEST_SKIP="${ALLOW_TEST_SKIP:-}"
+if [ -z "$ALLOW_TEST_SKIP" ]; then
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    ALLOW_TEST_SKIP="0"
+  else
+    ALLOW_TEST_SKIP="1"
+  fi
+fi
 
 for test_path in "${tests[@]}"; do
   test_name="$(basename "$test_path")"

@@ -18,45 +18,34 @@ apply_recovery_and_reboot() {
   reboot -f
 }
 
-_mark_testing_success_unlocked() {
-  local module
-  module="$(get_state "testing_module")"
-
-  if [ -n "$module" ]; then
-    log_info "测试模块启动成功: $module"
-    _clear_state_unlocked "testing_module"
-    _set_state_unlocked "last_restored_module" "$module"
-    _set_state_unlocked "last_action" "成功恢复模块: $module"
-  fi
-
-  _set_state_unlocked "last_health_status" "healthy"
-  _set_state_unlocked "boot_attempts" "0"
-}
-
 handle_healthy_boot() {
   acquire_lock
 
   local boot_id_file="${MOCK_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}"
-  local boot_id="$(cat "$boot_id_file" 2>/dev/null)"
-  local decision="$(get_state "decision_$boot_id")"
+  local boot_id
+  local decision
+
+  boot_id="$(cat "$boot_id_file" 2>/dev/null)"
+  decision="$(get_state "decision_$boot_id")"
 
   if [ -n "$boot_id" ] && [ -n "$decision" ]; then
     release_lock
     return 0
   fi
 
-  log_info "系统健康，开始执行健康的守护任务。 (Boot ID: $boot_id)"
+  log_info "系统健康，保存健康快照。 (Boot ID: $boot_id)"
 
   if [ -n "$boot_id" ]; then
     _set_state_unlocked "decision_$boot_id" "healthy"
   fi
 
-  _mark_testing_success_unlocked
+  _set_state_unlocked "last_health_status" "healthy"
+  _set_state_unlocked "boot_attempts" "0"
+  _set_state_unlocked "last_action" "系统健康，已更新健康快照。"
 
-  if [ -f "$MODDIR/scripts/restore_queue.sh" ]; then
-    . "$MODDIR/scripts/restore_queue.sh"
+  if [ -f "$MODDIR/scripts/snapshot.sh" ]; then
+    . "$MODDIR/scripts/snapshot.sh"
     save_good_snapshot
-    restore_next_item
   fi
 
   release_lock
@@ -73,7 +62,10 @@ get_suspect_modules() {
 
   for dir in "$ADB_ROOT/modules"/*; do
     [ -d "$dir" ] || continue
+
     local id="${dir##*/}"
+
+    is_valid_module_id "$id" || continue
     is_guardian_self "$id" && continue
     [ -f "$dir/module.prop" ] || continue
     [ -f "$dir/disable" ] && continue
@@ -107,8 +99,11 @@ handle_bootloop() {
   acquire_lock
 
   local boot_id_file="${MOCK_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}"
-  local boot_id="$(cat "$boot_id_file" 2>/dev/null)"
-  local decision="$(get_state "decision_$boot_id")"
+  local boot_id
+  local decision
+
+  boot_id="$(cat "$boot_id_file" 2>/dev/null)"
+  decision="$(get_state "decision_$boot_id")"
 
   if [ -n "$boot_id" ] && [ -n "$decision" ]; then
     release_lock
@@ -125,50 +120,38 @@ handle_bootloop() {
   fi
 
   _set_state_unlocked "last_health_status" "bootloop"
-  
-  # 仅读取 post-fs-data 维护的失败次数，并增加救砖执行计数
-  local attempts="$(get_state "boot_attempts")"
-  attempts="${attempts:-1}"
+
+  local attempts
+  attempts="$(get_state "boot_attempts")"
+  case "$attempts" in
+    ''|*[!0-9]*) attempts=1 ;;
+  esac
+
   _increment_state_unlocked "rescue_count" >/dev/null
 
-  log_error "检测到启动卡死（Bootloop）。当前失败尝试次数: $attempts"
+  log_error "检测到启动异常。当前异常启动次数: $attempts"
 
-  # 1. 如果存在测试项，则回滚
-  local module=$(get_state "testing_module")
-  if [ -n "$module" ]; then
-    if ! is_valid_module_id "$module"; then
-      log_error "testing_module 状态非法，已清除并继续普通救砖流程: $module"
-      _clear_state_unlocked "testing_module"
-      module=""
-    fi
-  fi
+  local targeted_threshold
+  local broad_threshold
+  local self_disable_threshold
 
-  if [ -n "$module" ]; then
-    touch "$ADB_ROOT/modules/$module/disable" 2>/dev/null
-    mv "$MODDIR/state/testing_module" "$MODDIR/state/failed_module.$module"
-    log_error "测试模块导致了 Bootloop，已被重新禁用: $module"
-    _set_state_unlocked "last_action" "拦截启动卡死！已重新禁用测试模块: $module"
-    release_lock
-    apply_recovery_and_reboot
-    return 0
-  fi
+  targeted_threshold="$(get_config TARGETED_RECOVERY_THRESHOLD 2)"
+  broad_threshold="$(get_config BROAD_RECOVERY_THRESHOLD 4)"
+  self_disable_threshold="$(get_config SELF_DISABLE_THRESHOLD 5)"
 
-
-  local targeted_threshold="$(get_config TARGETED_RECOVERY_THRESHOLD 2)"
-  local broad_threshold="$(get_config BROAD_RECOVERY_THRESHOLD 4)"
-  local self_disable_threshold="$(get_config SELF_DISABLE_THRESHOLD 5)"
-
-  # 2. 精准禁用嫌疑模块（新安装、刚更新、刚启用的模块）
+  # 1. 精准禁用嫌疑模块
   if [ "$attempts" -ge "$targeted_threshold" ] && [ "$attempts" -lt "$broad_threshold" ]; then
     log_error "达到精准禁用阈值，正在识别并禁用嫌疑模块..."
     get_suspect_modules || true
+
     local suspect_list="$MODDIR/state/suspect_modules.tsv"
     local disabled_any=0
-    
+
     if [ -s "$suspect_list" ]; then
-      while read id; do
+      while IFS= read -r id; do
         is_valid_module_id "$id" || continue
         is_guardian_self "$id" && continue
+
         if ! is_whitelisted "$id"; then
           touch "$ADB_ROOT/modules/$id/disable"
           append_unique_line "$MODDIR/state/guardian_disabled_modules.list" "$id"
@@ -177,35 +160,36 @@ handle_bootloop() {
         fi
       done < "$suspect_list"
     fi
-    
+
     if [ "$disabled_any" = "1" ]; then
-      _set_state_unlocked "last_action" "拦截启动卡死！已精准禁用最近变更的嫌疑模块。"
+      _set_state_unlocked "last_action" "已禁用嫌疑模块。"
       release_lock
       apply_recovery_and_reboot
       return 0
     fi
   fi
 
-  # 3. 达到自我禁用阈值
+  # 2. 自我禁用
   if [ "$attempts" -ge "$self_disable_threshold" ] && [ "$(get_config ALLOW_SELF_DISABLE 1)" = "1" ]; then
     touch "$MODDIR/disable"
-    log_error "达到自我禁用阈值。守护模块已自我禁用，以防止陷入无限循环。"
-    _set_state_unlocked "last_action" "拦截启动卡死！由于多次失败，守护模块已自我禁用。"
+    log_error "达到自我禁用阈值，Brick Guardian Z 已自我禁用。"
+    _set_state_unlocked "last_action" "由于多次异常启动，Brick Guardian Z 已自我禁用。"
     release_lock
     apply_recovery_and_reboot
     return 0
   fi
 
-  # 4. 如果精准禁用未生效，执行大范围禁用逻辑
+  # 3. 大范围禁用
   if [ "$attempts" -ge "$broad_threshold" ] && [ "$(get_config ALLOW_BROAD_DISABLE 1)" = "1" ]; then
-    log_error "达到大范围禁用阈值。正在禁用所有非白名单模块。"
-    
+    log_error "达到大范围禁用阈值，正在禁用所有非白名单模块。"
+
     local disabled_any=0
-    
+
     for dir in "$ADB_ROOT/modules"/*; do
       [ -d "$dir" ] || continue
+
       local id="${dir##*/}"
-      
+
       is_valid_module_id "$id" || continue
       is_guardian_self "$id" && continue
       [ -f "$dir/remove" ] && continue
@@ -218,9 +202,9 @@ handle_bootloop() {
         disabled_any=1
       fi
     done
-    
+
     if [ "$disabled_any" = "1" ]; then
-      _set_state_unlocked "last_action" "拦截启动卡死！已执行大范围禁用（非白名单模块）。"
+      _set_state_unlocked "last_action" "已执行大范围禁用。"
       release_lock
       apply_recovery_and_reboot
       return 0

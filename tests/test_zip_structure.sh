@@ -2,11 +2,15 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-export PATH="$ROOT/tests/bin:$PATH"
 
 if ! command -v zip >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
-  echo "FAIL: zip or unzip not found, required for release validation"
-  exit 1
+  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
+    echo "FAIL: zip or unzip not found in CI environment, required for release validation"
+    exit 1
+  else
+    echo "SKIP: zip or unzip not found in local environment"
+    exit 2
+  fi
 fi
 
 bash "$ROOT/tools/build_zip.sh"
@@ -28,7 +32,7 @@ required=(
   scripts/state.sh
   scripts/healthcheck.sh
   scripts/recovery.sh
-  scripts/restore_queue.sh
+  scripts/snapshot.sh
 )
 
 for f in "${required[@]}"; do
@@ -51,7 +55,8 @@ for forbidden in \
   "scripts/first_run_repair.sh" \
   "scripts/legacy_repair.sh" \
   "scripts/ota_detector.sh" \
-  "scripts/rom_detector.sh"; do
+  "scripts/rom_detector.sh" \
+  "scripts/restore_queue.sh"; do
   if unzip -l "$zip_file" | awk '{print $4}' | grep -Fxq "$forbidden"; then
     echo "FAIL: zip contains forbidden legacy file: $forbidden"
     exit 1

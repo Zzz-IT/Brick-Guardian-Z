@@ -29,7 +29,7 @@ required=(
   scripts/state.sh
   scripts/healthcheck.sh
   scripts/recovery.sh
-  scripts/restore_queue.sh
+  scripts/snapshot.sh
 )
 
 for f in "${required[@]}"; do

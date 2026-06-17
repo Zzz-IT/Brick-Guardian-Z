@@ -39,7 +39,7 @@ if [ -f "$MODDIR/state/last_health_status" ]; then
 fi
 echo "- 上次启动状态: $health"
 
-if [ -s "$MODDIR/state/good_modules.tsv" ]; then
+if [ -f "$MODDIR/state/good_modules.tsv" ]; then
   echo "- 健康快照: 存在"
 elif [ "$(cat "$MODDIR/state/last_health_status" 2>/dev/null)" = "healthy" ]; then
   echo "- 健康快照: 异常"

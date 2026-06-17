@@ -43,6 +43,12 @@ reboot() {
   echo "MOCK REBOOT"
 }
 
+# Mock sleep
+sleep() {
+  :
+}
+
 # 导出函数，以便在被 source 的脚本中可以被调用
 export -f getprop
 export -f reboot
+export -f sleep

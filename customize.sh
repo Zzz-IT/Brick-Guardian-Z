@@ -27,9 +27,6 @@ TARGETED_RECOVERY_THRESHOLD=2
 BROAD_RECOVERY_THRESHOLD=4
 SELF_DISABLE_THRESHOLD=5
 
-# 自动恢复守护禁用过的模块
-AUTO_RESTORE_DISABLED_MODULES=1
-
 # 兜底开关
 ALLOW_BROAD_DISABLE=1
 ALLOW_SELF_DISABLE=1
@@ -43,6 +40,17 @@ if [ ! -f "$MODPATH/config/whitelist.conf" ]; then
 # zygisk_lsposed
 EOF
 fi
+
+# 清理旧版内部恢复状态，仅限本模块 state 目录
+rm -f "$MODPATH/state/module_restore.queue" \
+      "$MODPATH/state/testing_module" \
+      "$MODPATH/state/last_restored_module" \
+      "$MODPATH/state/failed_script" \
+      "$MODPATH/state/testing_script" \
+      "$MODPATH/state/script_restore.queue" \
+      "$MODPATH/state/script_manual_review.queue" 2>/dev/null
+
+rm -f "$MODPATH"/state/failed_module.* 2>/dev/null
 
 ui_print "- Brick Guardian Z 已安装完成！"
 ui_print "- 重启后，模块将自动在后台守护系统启动。"
