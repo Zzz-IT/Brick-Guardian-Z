@@ -2,9 +2,8 @@
 set -euo pipefail
 
 if ! command -v zip >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
-  echo "PASS: zip or unzip not found, skipping"
-  echo "[TEST] test_zip_structure 成功！"
-  exit 0
+  echo "SKIP: zip or unzip not found, required for release validation"
+  exit 2
 fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -17,6 +17,7 @@ fi
 
 fail_count=0
 pass_count=0
+skip_count=0
 
 for test_script in "${tests[@]}"; do
   test_name="$(basename "$test_script")"
@@ -29,16 +30,22 @@ for test_script in "${tests[@]}"; do
     continue
   fi
 
-  if ! grep -q "PASS:" "$test_script"; then
+  if ! grep -qE "PASS:|SKIP:" "$test_script"; then
     echo "[$test_name] 结果: FAIL (empty or no assertions)"
     fail_count=$((fail_count + 1))
     echo "--------------------------------------"
     continue
   fi
 
-  if bash "$test_script"; then
+  local_exit=0
+  bash "$test_script" || local_exit=$?
+
+  if [ "$local_exit" -eq 0 ]; then
     echo "[$test_name] 结果: PASS"
     pass_count=$((pass_count + 1))
+  elif [ "$local_exit" -eq 2 ]; then
+    echo "[$test_name] 结果: SKIP"
+    skip_count=$((skip_count + 1))
   else
     echo "[$test_name] 结果: FAIL"
     fail_count=$((fail_count + 1))
@@ -47,7 +54,7 @@ for test_script in "${tests[@]}"; do
   echo "--------------------------------------"
 done
 
-echo "测试总览: $pass_count 成功, $fail_count 失败"
+echo "测试总览: $pass_count 成功, $fail_count 失败, $skip_count 跳过"
 
 if [ "$fail_count" -gt 0 ]; then
   exit 1

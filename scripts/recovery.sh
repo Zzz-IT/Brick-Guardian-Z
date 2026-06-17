@@ -176,12 +176,13 @@ handle_bootloop() {
   local module=$(get_state "testing_module")
   if [ -n "$module" ]; then
     if ! is_valid_module_id "$module"; then
-      log_error "testing_module 状态非法，已清除: $module"
+      log_error "testing_module 状态非法，已清除并继续普通救砖流程: $module"
       _clear_state_unlocked "testing_module"
-      release_lock
-      return 0
+      module=""
     fi
+  fi
 
+  if [ -n "$module" ]; then
     touch "$ADB_ROOT/modules/$module/disable" 2>/dev/null
     mv "$MODDIR/state/testing_module" "$MODDIR/state/failed_module.$module"
     log_error "测试模块导致了 Bootloop，已被重新禁用: $module"
@@ -197,13 +198,14 @@ handle_bootloop() {
       "$ADB_ROOT/service.d/"* | "$ADB_ROOT/boot-completed.d/"*)
         ;;
       *)
-        log_error "testing_script 状态非法或属于早期脚本，已清除: $script"
+        log_error "testing_script 状态非法或属于早期脚本，已清除并继续普通救砖流程: $script"
         _clear_state_unlocked "testing_script"
-        release_lock
-        return 0
+        script=""
         ;;
     esac
+  fi
 
+  if [ -n "$script" ]; then
     [ -e "$script" ] && chmod 000 "$script"
     mv "$MODDIR/state/testing_script" "$MODDIR/state/failed_script"
     log_error "测试脚本导致了 Bootloop，已重新取消执行权限: $script"
@@ -220,7 +222,7 @@ handle_bootloop() {
   # 2. 精准禁用嫌疑模块（新安装、刚更新、刚启用的模块）
   if [ "$attempts" -ge "$targeted_threshold" ] && [ "$attempts" -lt "$broad_threshold" ]; then
     log_error "达到精准禁用阈值，正在识别并禁用嫌疑模块..."
-    get_suspect_modules
+    get_suspect_modules || true
     local suspect_list="$MODDIR/state/suspect_modules.tsv"
     local disabled_any=0
     
