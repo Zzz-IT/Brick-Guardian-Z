@@ -2,14 +2,10 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT"
 
-if ! command -v unzip >/dev/null 2>&1; then
-  unzip() {
-    python "$ROOT/tools/zip_helper.py" unzip "$@"
-  }
-fi
-
-export -f unzip 2>/dev/null || true # Export function if supported, or subshells will inherit it otherwise
+command -v zip >/dev/null 2>&1 || { echo "FAIL: zip not found"; exit 1; }
+command -v unzip >/dev/null 2>&1 || { echo "FAIL: unzip not found"; exit 1; }
 
 ALLOW_TEST_SKIP=0 bash tests/run_all.sh
 bash tools/build_zip.sh

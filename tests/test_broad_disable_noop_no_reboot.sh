@@ -20,7 +20,7 @@ EOF
 _set_state_unlocked "boot_attempts" "4"
 
 # 没有任何可禁用模块
-output="$(handle_bootloop 2>&1 || true)"
+handle_bootloop >/dev/null 2>&1 || true
 
 if grep -q "没有可禁用模块" "$MODDIR/state/last_action"; then
   echo "PASS: broad 无可禁用模块时写入 last_action"

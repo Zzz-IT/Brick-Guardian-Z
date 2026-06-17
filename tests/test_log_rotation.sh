@@ -35,5 +35,24 @@ if [ -f "$MODDIR/logs/guardian.log.4" ]; then
   exit 1
 fi
 
+# ==========================================
+# 测试非法非数字值输入时的防御回滚与正常运行
+# ==========================================
+export LOG_MAX_BYTES=abc
+export LOG_MAX_BACKUPS=abc
+
+setup_env
+
+# 模拟写入 300KB 日志以触发默认 256KB LOG_MAX_BYTES 限制下的轮转
+dd if=/dev/zero bs=1000 count=300 2>/dev/null | tr '\0' C > "$MODDIR/logs/guardian.log"
+log_info "trigger rotation under illegal parameters"
+
+if [ -f "$MODDIR/logs/guardian.log.1" ]; then
+  echo "PASS: 非法日志参数防御回退并成功轮转"
+else
+  echo "FAIL: 非法日志参数防御失败，未生成轮转备份"
+  exit 1
+fi
+
 echo "PASS: 日志自动循环轮转并限制备份数量"
 exit 0

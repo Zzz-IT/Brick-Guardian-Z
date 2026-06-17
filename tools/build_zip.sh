@@ -4,12 +4,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUT="$ROOT/dist"
 
-if ! command -v zip >/dev/null 2>&1; then
-  zip() {
-    python "$ROOT/tools/zip_helper.py" zip "$@"
-  }
-fi
-
 version="$(awk -F= '$1=="version"{print $2; exit}' "$ROOT/module.prop")"
 version="${version:-v1.0.0}"
 

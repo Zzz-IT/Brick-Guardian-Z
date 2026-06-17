@@ -15,6 +15,16 @@ rotate_log() {
   local log_file="$MODDIR/logs/guardian.log"
   local size
 
+  case "$LOG_MAX_BYTES" in
+    ''|*[!0-9]*) LOG_MAX_BYTES=262144 ;;
+  esac
+
+  case "$LOG_MAX_BACKUPS" in
+    ''|*[!0-9]*) LOG_MAX_BACKUPS=3 ;;
+  esac
+
+  [ "$LOG_MAX_BACKUPS" -ge 1 ] || LOG_MAX_BACKUPS=1
+
   mkdir -p "$MODDIR/logs" 2>/dev/null
 
   [ -f "$log_file" ] || return 0

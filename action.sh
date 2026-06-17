@@ -11,8 +11,6 @@ elif [ -d "$ADB_ROOT/ap" ]; then
   root_manager="APatch"
 fi
 
-
-
 echo "Brick Guardian Z"
 echo ""
 
@@ -113,8 +111,6 @@ if [ -f "$MODDIR/logs/guardian.log" ]; then
 else
   echo "暂无日志"
 fi
-
-
 
 case "$root_manager" in
   KernelSU|APatch)
