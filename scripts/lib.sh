@@ -1,7 +1,6 @@
 #!/system/bin/sh
 # KSU Safe Guardian lib.sh
 
-# 如果 MODDIR 尚未设置，则基于脚本当前位置推断
 if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 fi
@@ -11,7 +10,9 @@ rotate_log() {
   if [ -f "$log_file" ]; then
     local size=$(stat -c %s "$log_file" 2>/dev/null || echo 0)
     if [ "$size" -gt 512000 ]; then
-      mv -f "$log_file" "$log_file.bak"
+      mv -f "$log_file.2" "$log_file.3" 2>/dev/null
+      mv -f "$log_file.1" "$log_file.2" 2>/dev/null
+      mv -f "$log_file" "$log_file.1" 2>/dev/null
     fi
   fi
 }
@@ -52,17 +53,10 @@ is_whitelisted() {
       return 0
     fi
   fi
-  # 如果已经导入，同时检查旧版白名单
-  if [ -f "$MODDIR/quarantine/legacy/whitelist.conf" ]; then
-    if grep -Fxq "${id}" "$MODDIR/quarantine/legacy/whitelist.conf"; then
-      return 0
-    fi
-  fi
   return 1
 }
 
 is_valid_module_id() {
   local id="$1"
-  # 官方要求：首字符为字母，其余为字母、数字、下划线、破折号或点号
   echo "$id" | grep -Eq '^[a-zA-Z][a-zA-Z0-9._-]+$'
 }

@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# KSU Safe Guardian legacy_repair.sh
+# KSU Safe Guardian first_run_repair.sh
 
 if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
@@ -18,31 +18,31 @@ repair_modules_update_bak() {
   local dst="$GLOBAL_QUARANTINE/modules_update.bak.$(date +%Y%m%d_%H%M%S)"
   if mv "$bak" "$dst"; then
     log_warn "旧版 modules_update.bak 拦截残留已被隔离到: $dst"
-    set_state "quarantined_modules_update" "$dst"
+    _set_state_unlocked "quarantined_modules_update" "$dst"
   else
     log_error "隔离 modules_update.bak 失败"
     return 1
   fi
 }
 
-run_legacy_repair() {
-  log_info "开始旧版数据清理与修复流程..."
+run_first_run_repair() {
+  log_info "开始首次启动清理与擦屁股流程..."
 
-  # 归档旧的状态日志记录
+  # 归档旧的状态日志记录，只作为历史参考，不参与决策
   mkdir -p "$GLOBAL_QUARANTINE/legacy-state"
   cp -af /data/adb/modules/magisk-brick-guardian/startup_count.log "$GLOBAL_QUARANTINE/legacy-state/" 2>/dev/null
   cp -af /data/adb/modules/magisk-brick-guardian/rescue_count.log "$GLOBAL_QUARANTINE/legacy-state/" 2>/dev/null
 
-  # 隔离模块更新的备份目录
+  # 隔离被挟持的模块更新备份目录
   if [ "$(get_config AUTO_QUARANTINE_MODULES_UPDATE_BAK 1)" = "1" ]; then
     repair_modules_update_bak
   fi
 
-  # 为被禁用模块或脚本生成恢复队列
+  # 为系统中已被禁用的模块或脚本生成恢复队列
   . "$MODDIR/scripts/restore_queue.sh"
   build_module_restore_queue
   build_script_restore_queue
 
-  set_state "last_action" "旧版迁移与修复流程已完成。"
-  log_info "旧版迁移与修复流程已完成。"
+  _set_state_unlocked "last_action" "首次安装系统清理与修复已完成。"
+  log_info "首次安装系统清理与修复已完成。"
 }

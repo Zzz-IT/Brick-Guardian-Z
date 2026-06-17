@@ -39,8 +39,6 @@ build_module_restore_queue() {
     return 0
   fi
 
-  local legacy_good="$MODDIR/quarantine/legacy/good_modules.list"
-
   for dir in /data/adb/modules/*; do
     [ -d "$dir" ] || continue
     local id="${dir##*/}"
@@ -54,9 +52,7 @@ build_module_restore_queue() {
 
     local priority="P2"
 
-    if [ -f "$legacy_good" ] && grep -Fxq "$id" "$legacy_good"; then
-      priority="P0"
-    elif is_whitelisted "$id"; then
+    if is_whitelisted "$id"; then
       priority="P1"
     fi
 
@@ -113,10 +109,10 @@ restore_one_module_for_testing() {
 
   if [ -f "/data/adb/modules/$id/disable" ]; then
     rm -f "/data/adb/modules/$id/disable"
-    set_state "testing_module" "$id"
+    _set_state_unlocked "testing_module" "$id"
     sed -i '1d' "$queue"
     log_info "已恢复测试模块（将在下一次启动时验证）: $id"
-    set_state "last_action" "已尝试恢复并测试模块: $id"
+    _set_state_unlocked "last_action" "已尝试恢复并测试模块: $id"
   fi
 }
 
@@ -137,14 +133,14 @@ restore_one_script_for_testing() {
   }
 
   chmod "$mode" "$path"
-  set_state "testing_script" "$path"
+  _set_state_unlocked "testing_script" "$path"
   sed -i '1d' "$queue"
   log_info "已恢复测试脚本（将在下一次启动时验证）: $path"
-  set_state "last_action" "已尝试恢复并测试全局脚本: $path"
+  _set_state_unlocked "last_action" "已尝试恢复并测试全局脚本: $path"
 }
 
 restore_next_item() {
-  # 每次启动仅测试一个模块，如果没有模块，则测试一个脚本。
+  # 注意：此函数假定已被外部锁定（在 handle_healthy_boot 内调用）
   if [ -f "$MODDIR/state/testing_module" ] || [ -f "$MODDIR/state/testing_script" ]; then
     return 0
   fi

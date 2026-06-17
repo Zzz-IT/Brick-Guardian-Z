@@ -6,7 +6,6 @@ MODDIR=${0%/*}
 . "$MODDIR/scripts/lib.sh"
 . "$MODDIR/scripts/state.sh"
 . "$MODDIR/scripts/recovery.sh"
-. "$MODDIR/scripts/detector.sh"
 
 log_info "boot-completed 阶段已确认执行"
 

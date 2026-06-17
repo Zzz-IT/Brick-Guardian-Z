@@ -18,53 +18,52 @@ apply_recovery_and_reboot() {
   reboot -f
 }
 
-mark_testing_success() {
+_mark_testing_success_unlocked() {
   local module=$(get_state "testing_module")
   if [ -n "$module" ]; then
     log_info "测试模块启动成功: $module"
-    clear_state "testing_module"
-    set_state "last_action" "成功恢复模块: $module"
+    _clear_state_unlocked "testing_module"
+    _set_state_unlocked "last_action" "成功恢复模块: $module"
   fi
 
   local script=$(get_state "testing_script")
   if [ -n "$script" ]; then
     log_info "测试脚本启动成功: $script"
-    clear_state "testing_script"
-    set_state "last_action" "成功恢复脚本: $script"
+    _clear_state_unlocked "testing_script"
+    _set_state_unlocked "last_action" "成功恢复脚本: $script"
   fi
 
-  set_state "last_health_status" "healthy"
-  set_state "boot_attempts" "0"
+  _set_state_unlocked "last_health_status" "healthy"
+  _set_state_unlocked "boot_attempts" "0"
 }
 
 handle_healthy_boot() {
   acquire_lock
 
   local boot_id="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"
-  local processed_boot="$(get_state "last_processed_healthy_boot")"
+  local decision="$(get_state "decision_$boot_id")"
 
-  if [ -n "$boot_id" ] && [ "$boot_id" = "$processed_boot" ]; then
-    # 当前启动已经处理过健康回调，防止 service 和 boot-completed 并发执行重复逻辑
+  if [ -n "$boot_id" ] && [ -n "$decision" ]; then
+    # 当前启动已经做过健康或失败决策，防止并发竞争
     release_lock
     return 0
   fi
 
   log_info "系统健康，开始执行健康的守护任务。 (Boot ID: $boot_id)"
   
-  # 标记本次启动的健康回调已处理
   if [ -n "$boot_id" ]; then
-    atomic_write_state "last_processed_healthy_boot" "$boot_id"
+    _set_state_unlocked "decision_$boot_id" "healthy"
   fi
 
-  # 检查是否存在待处理的迁移任务
-  if [ -f "$MODDIR/state/migration_pending" ]; then
-    log_info "正在执行旧版修复与迁移任务..."
-    . "$MODDIR/scripts/legacy_repair.sh"
-    run_legacy_repair
-    rm -f "$MODDIR/state/migration_pending"
+  # 检查是否存在待处理的首次清理任务
+  if [ -f "$MODDIR/state/first_run_repair_pending" ]; then
+    log_info "正在执行首次擦屁股清理任务..."
+    . "$MODDIR/scripts/first_run_repair.sh"
+    run_first_run_repair
+    _clear_state_unlocked "first_run_repair_pending"
   fi
 
-  mark_testing_success
+  _mark_testing_success_unlocked
 
   # 保存当前健康的模块快照
   if [ -f "$MODDIR/scripts/restore_queue.sh" ]; then
@@ -95,8 +94,8 @@ get_suspect_modules() {
     local vc="$(grep '^versionCode=' "$dir/module.prop" 2>/dev/null | cut -d= -f2)"
     local hash="$(sha256sum "$dir/module.prop" 2>/dev/null | awk '{print $1}')"
     
-    # 查找此模块在快照中的记录
-    local snap_record="$(grep "^${id}	" "$good_snap")"
+    # 使用 awk 精确匹配模块 ID，避免点号被当做正则
+    local snap_record="$(awk -F '\t' -v id="$id" '$1 == id {print; exit}' "$good_snap")"
     if [ -z "$snap_record" ]; then
       # 新安装的模块
       echo "$id" >> "$suspect_list"
@@ -119,13 +118,27 @@ get_suspect_modules() {
 
 handle_bootloop() {
   acquire_lock
-  set_state "last_health_status" "bootloop"
-  release_lock
-  
-  local attempts=$(increment_state "boot_attempts")
-  increment_state "rescue_count"
 
-  log_error "检测到启动卡死（Bootloop）。当前尝试次数: $attempts"
+  local boot_id="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"
+  local decision="$(get_state "decision_$boot_id")"
+
+  if [ -n "$boot_id" ] && [ -n "$decision" ]; then
+    release_lock
+    return 0
+  fi
+
+  if [ -n "$boot_id" ]; then
+    _set_state_unlocked "decision_$boot_id" "bootloop"
+  fi
+
+  _set_state_unlocked "last_health_status" "bootloop"
+  
+  # 仅读取 post-fs-data 维护的失败次数，并增加救砖执行计数
+  local attempts="$(get_state "boot_attempts")"
+  attempts="${attempts:-1}"
+  _increment_state_unlocked "rescue_count" >/dev/null
+
+  log_error "检测到启动卡死（Bootloop）。当前失败尝试次数: $attempts"
 
   # 1. 如果存在测试项，则回滚
   local module=$(get_state "testing_module")
@@ -133,7 +146,8 @@ handle_bootloop() {
     touch "/data/adb/modules/$module/disable" 2>/dev/null
     mv "$MODDIR/state/testing_module" "$MODDIR/state/failed_module.$module"
     log_error "测试模块导致了 Bootloop，已被重新禁用: $module"
-    set_state "last_action" "拦截启动卡死！已重新禁用测试模块: $module"
+    _set_state_unlocked "last_action" "拦截启动卡死！已重新禁用测试模块: $module"
+    release_lock
     apply_recovery_and_reboot
     return 0
   fi
@@ -143,7 +157,8 @@ handle_bootloop() {
     [ -e "$script" ] && chmod 000 "$script"
     mv "$MODDIR/state/testing_script" "$MODDIR/state/failed_script"
     log_error "测试脚本导致了 Bootloop，已重新取消执行权限: $script"
-    set_state "last_action" "拦截启动卡死！已重新禁用测试脚本: $script"
+    _set_state_unlocked "last_action" "拦截启动卡死！已重新禁用测试脚本: $script"
+    release_lock
     apply_recovery_and_reboot
     return 0
   fi
@@ -172,7 +187,8 @@ handle_bootloop() {
     fi
     
     if [ "$disabled_any" = "1" ]; then
-      set_state "last_action" "拦截启动卡死！已精准禁用最近变更的嫌疑模块。"
+      _set_state_unlocked "last_action" "拦截启动卡死！已精准禁用最近变更的嫌疑模块。"
+      release_lock
       apply_recovery_and_reboot
       return 0
     fi
@@ -182,7 +198,8 @@ handle_bootloop() {
   if [ "$attempts" -ge "$self_disable_threshold" ] && [ "$(get_config ALLOW_SELF_DISABLE 1)" = "1" ]; then
     touch "$MODDIR/disable"
     log_error "达到自我禁用阈值。守护模块已自我禁用，以防止陷入无限循环。"
-    set_state "last_action" "拦截启动卡死！由于多次失败，守护模块已自我禁用。"
+    _set_state_unlocked "last_action" "拦截启动卡死！由于多次失败，守护模块已自我禁用。"
+    release_lock
     apply_recovery_and_reboot
     return 0
   fi
@@ -204,8 +221,11 @@ handle_bootloop() {
         log_info "大范围禁用: $id"
       fi
     done
-    set_state "last_action" "拦截启动卡死！已执行大范围禁用（非白名单模块）。"
+    _set_state_unlocked "last_action" "拦截启动卡死！已执行大范围禁用（非白名单模块）。"
+    release_lock
     apply_recovery_and_reboot
     return 0
   fi
+
+  release_lock
 }

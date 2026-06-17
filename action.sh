@@ -17,10 +17,10 @@ else
   echo "- Root 管理器: Magisk"
 fi
 
-if [ -f "$MODDIR/state/migration_pending" ]; then
-  echo "- 旧版迁移状态: 待处理 (pending)"
+if [ -f "$MODDIR/state/first_run_repair_pending" ]; then
+  echo "- 首次开机清理状态: 待处理 (pending)"
 else
-  echo "- 旧版迁移状态: 已完成 (completed)"
+  echo "- 首次开机清理状态: 已完成 (completed)"
 fi
 
 if [ -f "/data/adb/modules/magisk-brick-guardian/disable" ]; then
@@ -36,8 +36,14 @@ else
   echo "- 上次启动健康度: 未知 (unknown)"
 fi
 
+if [ -f "$MODDIR/state/boot_attempts" ]; then
+  echo "- 当前未健康启动次数 (boot_attempts): $(cat "$MODDIR/state/boot_attempts")"
+else
+  echo "- 当前未健康启动次数 (boot_attempts): 0"
+fi
+
 echo ""
-echo "遗留修复 (Legacy repair):"
+echo "自动修复与接管队列 (Repair queue):"
 if [ -f "$MODDIR/state/quarantined_modules_update" ]; then
   echo "- modules_update.bak (更新拦截残留): 已隔离"
 else

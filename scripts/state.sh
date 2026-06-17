@@ -1,7 +1,6 @@
 #!/system/bin/sh
 # KSU Safe Guardian state.sh
 
-# 如果 MODDIR 尚未设置，则基于脚本当前位置推断
 if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 fi
@@ -40,29 +39,38 @@ atomic_write_state() {
   mv -f "$tmp" "$MODDIR/state/$key"
 }
 
-set_state() {
+_set_state_unlocked() {
+  atomic_write_state "$1" "$2"
+}
+
+_clear_state_unlocked() {
+  rm -f "$MODDIR/state/$1"
+}
+
+_increment_state_unlocked() {
   local key="$1"
-  local val="$2"
-  acquire_lock
+  local val=$(get_state "$key")
+  val=${val:-0}
+  val=$((val + 1))
   atomic_write_state "$key" "$val"
+  echo "$val"
+}
+
+set_state() {
+  acquire_lock
+  _set_state_unlocked "$1" "$2"
   release_lock
 }
 
 clear_state() {
-  local key="$1"
   acquire_lock
-  rm -f "$MODDIR/state/$key"
+  _clear_state_unlocked "$1"
   release_lock
 }
 
 increment_state() {
-  local key="$1"
   acquire_lock
-  local val
-  val=$(get_state "$key")
-  val=${val:-0}
-  val=$((val + 1))
-  atomic_write_state "$key" "$val"
+  local val=$(_increment_state_unlocked "$1")
   release_lock
   echo "$val"
 }
