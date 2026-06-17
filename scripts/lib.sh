@@ -44,9 +44,16 @@ get_config() {
     val="$(
       awk -F= -v key="$key" '
         /^[[:space:]]*#/ {next}
-        $1 == key {
-          print $2
-          exit
+        NF >= 2 {
+          k=$1
+          v=$0
+          sub(/^[^=]*=/, "", v)
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "", k)
+          gsub(/^[[:space:]]+|[[:space:]]+$/, "", v)
+          if (k == key) {
+            print v
+            exit
+          }
         }
       ' "$MODDIR/config/default.conf"
     )"
@@ -67,9 +74,13 @@ is_whitelisted() {
   [ -f "$file" ] || return 1
 
   awk -v id="$id" '
-    /^[[:space:]]*$/ {next}
-    /^[[:space:]]*#/ {next}
-    $0 == id {found=1}
+    {
+      line=$0
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+    }
+    line == "" {next}
+    line ~ /^#/ {next}
+    line == id {found=1}
     END {exit found ? 0 : 1}
   ' "$file"
 }

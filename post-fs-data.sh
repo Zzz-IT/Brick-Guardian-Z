@@ -29,13 +29,6 @@ if [ -n "$boot_id" ] && [ "$boot_id" != "$last_seen" ]; then
   printf '%s\n' "$attempts" > "$tmp_att" && mv -f "$tmp_att" "$MODDIR/state/boot_attempts"
 fi
 
-# 如果存在待处理的迁移任务，我们几乎不执行任何操作，避免在首次启动时产生误判
-if [ -f "$MODDIR/state/migration_pending" ]; then
-  # 仅确保旧模块被禁用
-  touch "$ADB_ROOT/modules/magisk-brick-guardian/disable" 2>/dev/null
-  log_info "存在待处理的迁移任务：post-fs-data 阶段保持静默"
-  exit 0
-fi
-
+# 开始新的启动生命周期处理
 log_info "post-fs-data 阶段已执行"
 exit 0

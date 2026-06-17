@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Mock Environment for testing KSU Safe Guardian
 
 # 设置基础目录
@@ -38,5 +38,11 @@ getprop() {
   fi
 }
 
+# Mock reboot
+reboot() {
+  echo "MOCK REBOOT"
+}
+
 # 导出函数，以便在被 source 的脚本中可以被调用
 export -f getprop
+export -f reboot
