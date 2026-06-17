@@ -18,7 +18,7 @@ repair_modules_update_bak() {
   local dst="$GLOBAL_QUARANTINE/modules_update.bak.$(date +%Y%m%d_%H%M%S)"
   if mv "$bak" "$dst"; then
     log_warn "旧版 modules_update.bak 拦截残留已被隔离到: $dst"
-    _set_state_unlocked "quarantined_modules_update" "$dst"
+    set_state "quarantined_modules_update" "$dst"
   else
     log_error "隔离 modules_update.bak 失败"
     return 1
@@ -43,7 +43,7 @@ run_first_run_repair() {
   build_module_restore_queue || return 1
   build_script_restore_queue || return 1
 
-  _set_state_unlocked "last_action" "首次安装系统清理与修复已完成。"
+  set_state "last_action" "首次安装系统清理与修复已完成。"
   log_info "首次安装系统清理与修复已完成。"
   return 0
 }

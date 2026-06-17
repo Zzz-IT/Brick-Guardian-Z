@@ -92,7 +92,7 @@ echo ""
 echo "白名单状态 (Whitelist):"
 whitelist_conf="$MODDIR/config/whitelist.conf"
 if [ -f "$whitelist_conf" ]; then
-  whitelist_count=$(grep -v '^#' "$whitelist_conf" | grep -v '^$' | wc -l)
+  whitelist_count=$(awk '/^[[:space:]]*$/ {next} /^[[:space:]]*#/ {next} {count++} END {print count+0}' "$whitelist_conf")
   echo "- 路径: $whitelist_conf"
   echo "- 数量: $whitelist_count 个"
 else

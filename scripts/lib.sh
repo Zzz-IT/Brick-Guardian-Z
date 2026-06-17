@@ -38,10 +38,20 @@ log_error() {
 get_config() {
   local key="$1"
   local default_val="$2"
-  local val
+  local val=""
+
   if [ -f "$MODDIR/config/default.conf" ]; then
-    val=$(grep "^${key}=" "$MODDIR/config/default.conf" | cut -d'=' -f2)
+    val="$(
+      awk -F= -v key="$key" '
+        /^[[:space:]]*#/ {next}
+        $1 == key {
+          print $2
+          exit
+        }
+      ' "$MODDIR/config/default.conf"
+    )"
   fi
+
   if [ -n "$val" ]; then
     echo "$val"
   else
@@ -51,12 +61,17 @@ get_config() {
 
 is_whitelisted() {
   local id="$1"
-  if [ -f "$MODDIR/config/whitelist.conf" ]; then
-    if grep -Fxq "${id}" "$MODDIR/config/whitelist.conf"; then
-      return 0
-    fi
-  fi
-  return 1
+  local file="$MODDIR/config/whitelist.conf"
+
+  is_valid_module_id "$id" || return 1
+  [ -f "$file" ] || return 1
+
+  awk -v id="$id" '
+    /^[[:space:]]*$/ {next}
+    /^[[:space:]]*#/ {next}
+    $0 == id {found=1}
+    END {exit found ? 0 : 1}
+  ' "$file"
 }
 
 is_guardian_self() {

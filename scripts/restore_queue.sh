@@ -13,7 +13,7 @@ save_good_snapshot() {
   local tmp="$out.tmp.$$"
 
   : > "$tmp"
-  for dir in /data/adb/modules/*; do
+  for dir in "$ADB_ROOT/modules"/*; do
     [ -d "$dir" ] || continue
     local id="${dir##*/}"
     [ -f "$dir/module.prop" ] || continue

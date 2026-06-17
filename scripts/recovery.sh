@@ -39,6 +39,7 @@ _mark_testing_success_unlocked() {
 
 handle_healthy_boot() {
   local need_first_run=0
+  local first_run_ok=0
 
   acquire_lock
 
@@ -71,9 +72,14 @@ handle_healthy_boot() {
     log_info "正在执行首次擦屁股清理任务..."
     . "$MODDIR/scripts/first_run_repair.sh"
     if run_first_run_repair; then
-      _clear_state_unlocked "first_run_repair_pending"
+      first_run_ok=1
     else
-      log_warn "首次擦屁股操作部分失败，保留 pending 状态待下次启动重试。"
+      log_warn "首次擦屁股操作部分失败，保留 pending 状态待下次健康启动重试。"
+    fi
+    
+    acquire_lock
+    if [ "$first_run_ok" = "1" ]; then
+      _clear_state_unlocked "first_run_repair_pending"
     fi
     _clear_state_unlocked "first_run_repair_running"
     release_lock
@@ -169,7 +175,7 @@ handle_bootloop() {
   # 1. 如果存在测试项，则回滚
   local module=$(get_state "testing_module")
   if [ -n "$module" ]; then
-    touch "/data/adb/modules/$module/disable" 2>/dev/null
+    touch "$ADB_ROOT/modules/$module/disable" 2>/dev/null
     mv "$MODDIR/state/testing_module" "$MODDIR/state/failed_module.$module"
     log_error "测试模块导致了 Bootloop，已被重新禁用: $module"
     _set_state_unlocked "last_action" "拦截启动卡死！已重新禁用测试模块: $module"
@@ -189,9 +195,9 @@ handle_bootloop() {
     return 0
   fi
 
-  local targeted_threshold=$(get_config TARGETED_RECOVERY_THRESHOLD 3)
-  local broad_threshold=$(get_config BROAD_RECOVERY_THRESHOLD 5)
-  local self_disable_threshold=$(get_config SELF_DISABLE_THRESHOLD 6)
+  local targeted_threshold="$(get_config TARGETED_RECOVERY_THRESHOLD 3)"
+  local broad_threshold="$(get_config BROAD_RECOVERY_THRESHOLD 6)"
+  local self_disable_threshold="$(get_config SELF_DISABLE_THRESHOLD 8)"
 
   # 2. 精准禁用嫌疑模块（新安装、刚更新、刚启用的模块）
   if [ "$attempts" -ge "$targeted_threshold" ] && [ "$attempts" -lt "$broad_threshold" ]; then
