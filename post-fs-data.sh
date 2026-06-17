@@ -22,7 +22,9 @@ if [ -n "$boot_id" ] && [ "$boot_id" != "$last_seen" ]; then
   printf '%s\n' "$boot_id" > "$tmp" && mv -f "$tmp" "$MODDIR/state/last_seen_boot_id"
   
   attempts="$(cat "$MODDIR/state/boot_attempts" 2>/dev/null)"
-  attempts=${attempts:-0}
+  case "$attempts" in
+    ''|*[!0-9]*) attempts=0 ;;
+  esac
   attempts=$((attempts + 1))
   
   tmp_att="$MODDIR/state/.boot_attempts.tmp.$$"

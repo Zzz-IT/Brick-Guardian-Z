@@ -2,14 +2,13 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$DIR/mock_env.sh"
+. "$DIR/mock_env.sh"
+setup_env
 
 echo "Running action.sh pure output test..."
 
-# 运行 action.sh
 output="$(bash "$MODDIR/action.sh" 2>&1 || true)"
 
-# 确保不出现旧版文案
 forbidden=(
   "首次开机清理"
   "旧版遗留"
@@ -26,14 +25,15 @@ for f in "${forbidden[@]}"; do
   fi
 done
 
-# 确保出现纯净版核心文案
 required=(
+  "Brick Guardian Z"
   "状态概览"
   "模块保护"
   "已救砖次数"
   "白名单模块"
   "最近异常禁用模块"
   "最近日志"
+  "手动清除日志"
 )
 
 for r in "${required[@]}"; do

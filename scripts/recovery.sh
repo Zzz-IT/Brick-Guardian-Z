@@ -153,28 +153,6 @@ handle_bootloop() {
     return 0
   fi
 
-  local script=$(get_state "testing_script")
-  if [ -n "$script" ]; then
-    case "$script" in
-      "$ADB_ROOT/service.d/"* | "$ADB_ROOT/boot-completed.d/"*)
-        ;;
-      *)
-        log_error "testing_script 状态非法或属于早期脚本，已清除并继续普通救砖流程: $script"
-        _clear_state_unlocked "testing_script"
-        script=""
-        ;;
-    esac
-  fi
-
-  if [ -n "$script" ]; then
-    [ -e "$script" ] && chmod 000 "$script"
-    mv "$MODDIR/state/testing_script" "$MODDIR/state/failed_script"
-    log_error "测试脚本导致了 Bootloop，已重新取消执行权限: $script"
-    _set_state_unlocked "last_action" "拦截启动卡死！已重新禁用测试脚本: $script"
-    release_lock
-    apply_recovery_and_reboot
-    return 0
-  fi
 
   local targeted_threshold="$(get_config TARGETED_RECOVERY_THRESHOLD 2)"
   local broad_threshold="$(get_config BROAD_RECOVERY_THRESHOLD 4)"
@@ -193,7 +171,7 @@ handle_bootloop() {
         is_guardian_self "$id" && continue
         if ! is_whitelisted "$id"; then
           touch "$ADB_ROOT/modules/$id/disable"
-          echo "$id" >> "$MODDIR/state/guardian_disabled_modules.list"
+          append_unique_line "$MODDIR/state/guardian_disabled_modules.list" "$id"
           log_info "精准禁用嫌疑模块: $id"
           disabled_any=1
         fi
@@ -235,7 +213,7 @@ handle_bootloop() {
 
       if ! is_whitelisted "$id"; then
         touch "$dir/disable"
-        echo "$id" >> "$MODDIR/state/guardian_disabled_modules.list"
+        append_unique_line "$MODDIR/state/guardian_disabled_modules.list" "$id"
         log_info "大范围禁用: $id"
         disabled_any=1
       fi

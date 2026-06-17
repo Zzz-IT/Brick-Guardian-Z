@@ -5,6 +5,17 @@ if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 fi
 
+safe_remove_lock() {
+  local lockdir="$MODDIR/state/.lock"
+  case "$lockdir" in
+    "$MODDIR/state/.lock")
+      if [ -n "$lockdir" ] && [ "$lockdir" != "/" ] && [ "$lockdir" != "." ]; then
+        rm -rf "$lockdir"
+      fi
+      ;;
+  esac
+}
+
 acquire_lock() {
   local lockdir="$MODDIR/state/.lock"
   local now="$(date +%s)"
@@ -12,12 +23,12 @@ acquire_lock() {
     local old="$(cat "$lockdir/time" 2>/dev/null)"
     case "$old" in
       ''|*[!0-9]*)
-        rm -rf "$lockdir"
+        safe_remove_lock
         continue
         ;;
     esac
     if [ $((now - old)) -gt 60 ]; then
-      rm -rf "$lockdir"
+      safe_remove_lock
       continue
     fi
     sleep 1
@@ -28,8 +39,7 @@ acquire_lock() {
 }
 
 release_lock() {
-  local lockdir="$MODDIR/state/.lock"
-  rm -rf "$lockdir"
+  safe_remove_lock
 }
 
 get_state() {

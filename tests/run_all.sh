@@ -8,20 +8,9 @@ echo "    Brick Guardian Z 测试套件启动    "
 echo "======================================"
 
 shopt -s nullglob
-TESTS=(
-  "test_basic_recovery.sh"
-  "test_testing_module_validation.sh"
-  "test_testing_module_rollback.sh"
-  "test_suspect_detection.sh"
-  "test_broad_disable_respects_whitelist.sh"
-  "test_self_disable.sh"
-  "test_concurrent_lock.sh"
-  "test_lock_timeout_override.sh"
-  "test_customize_defaults.sh"
-  "test_action_output.sh"
-)
+tests=( "$DIR"/test_*.sh )
 
-if [ "${#TESTS[@]}" -eq 0 ]; then
+if [ "${#tests[@]}" -eq 0 ]; then
   echo "FAIL: 未找到任何测试脚本"
   exit 1
 fi
@@ -29,10 +18,10 @@ fi
 fail_count=0
 pass_count=0
 skip_count=0
+ALLOW_TEST_SKIP="${ALLOW_TEST_SKIP:-0}"
 
-for test_script in "${TESTS[@]}"; do
-  test_path="$DIR/$test_script"
-  test_name="$(basename "$test_script")"
+for test_path in "${tests[@]}"; do
+  test_name="$(basename "$test_path")"
   echo ">>> 运行: $test_name"
 
   if [ ! -r "$test_path" ]; then
@@ -50,7 +39,7 @@ for test_script in "${TESTS[@]}"; do
   fi
 
   local_exit=0
-  bash "$test_script" || local_exit=$?
+  bash "$test_path" || local_exit=$?
 
   if [ "$local_exit" -eq 0 ]; then
     echo "[$test_name] 结果: PASS"
@@ -58,6 +47,10 @@ for test_script in "${TESTS[@]}"; do
   elif [ "$local_exit" -eq 2 ]; then
     echo "[$test_name] 结果: SKIP"
     skip_count=$((skip_count + 1))
+    if [ "$ALLOW_TEST_SKIP" != "1" ]; then
+      echo "[$test_name] 结果: FAIL (skip not allowed)"
+      fail_count=$((fail_count + 1))
+    fi
   else
     echo "[$test_name] 结果: FAIL"
     fail_count=$((fail_count + 1))

@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if ! command -v zip >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
-  echo "SKIP: zip or unzip not found, required for release validation"
-  exit 2
-fi
-
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+export PATH="$ROOT/tests/bin:$PATH"
+
+if ! command -v zip >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
+  echo "FAIL: zip or unzip not found, required for release validation"
+  exit 1
+fi
 
 bash "$ROOT/tools/build_zip.sh"
 
@@ -27,7 +28,6 @@ required=(
   scripts/state.sh
   scripts/healthcheck.sh
   scripts/recovery.sh
-  scripts/first_run_repair.sh
   scripts/restore_queue.sh
 )
 
@@ -46,6 +46,19 @@ if unzip -l "$zip_file" | awk '{print $4}' | grep -E '^(tests|dist|tools|phone_l
 else
   echo "PASS: zip excludes development files"
 fi
+
+for forbidden in \
+  "scripts/first_run_repair.sh" \
+  "scripts/legacy_repair.sh" \
+  "scripts/ota_detector.sh" \
+  "scripts/rom_detector.sh"; do
+  if unzip -l "$zip_file" | awk '{print $4}' | grep -Fxq "$forbidden"; then
+    echo "FAIL: zip contains forbidden legacy file: $forbidden"
+    exit 1
+  fi
+done
+
+echo "PASS: zip excludes legacy files"
 
 echo "[TEST] test_zip_structure 成功！"
 exit 0

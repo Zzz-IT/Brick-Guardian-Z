@@ -41,8 +41,10 @@ echo "- 上次启动状态: $health"
 
 if [ -s "$MODDIR/state/good_modules.tsv" ]; then
   echo "- 健康快照: 存在"
-else
+elif [ "$(cat "$MODDIR/state/last_health_status" 2>/dev/null)" = "healthy" ]; then
   echo "- 健康快照: 异常"
+else
+  echo "- 健康快照: 未生成"
 fi
 
 if [ -f "$MODDIR/state/boot_attempts" ]; then
@@ -93,13 +95,17 @@ if [ -f "$MODDIR/state/guardian_disabled_modules.list" ]; then
     | tail -n 10 > "$tmp_disabled"
 fi
 
+printed=0
 if [ -s "$tmp_disabled" ]; then
   while IFS= read -r id; do
     if is_valid_module_id "$id"; then
       echo "   $id"
+      printed=1
     fi
   done < "$tmp_disabled"
-else
+fi
+
+if [ "$printed" = "0" ]; then
   echo "   无"
 fi
 
@@ -120,7 +126,7 @@ echo "然后重新点击 Action。"
 
 case "$root_manager" in
   KernelSU|APatch)
-    sleep 30
+    sleep 10
     ;;
 esac
 

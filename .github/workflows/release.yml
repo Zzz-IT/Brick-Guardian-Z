@@ -15,6 +15,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Check release version consistency
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          prop_version="$(awk -F= '$1=="version"{print $2; exit}' module.prop)"
+          changelog_version="$(awk '/^## v/ {print $2; exit}' CHANGELOG.md)"
+
+          echo "tag=$tag"
+          echo "module.prop=$prop_version"
+          echo "CHANGELOG=$changelog_version"
+
+          test "$tag" = "$prop_version"
+          test "$tag" = "$changelog_version"
+
       - name: Install dependencies
         run: |
           sudo apt-get update
@@ -26,15 +39,33 @@ jobs:
       - name: Build release zip
         run: bash tools/build_zip.sh
 
+      - name: Generate SHA256SUMS
+        run: |
+          cd dist
+          sha256sum *.zip > SHA256SUMS
+          cd ..
+
       - name: Extract Changelog
         id: extract_changelog
         run: |
-          awk '/^## v/ {if (p) exit; p=1; next} p' CHANGELOG.md | sed -e '1{/^$/d;}' -e '${/^$/d;}' > release_notes.md
+          tag="${GITHUB_REF_NAME}"
+          awk -v tag="$tag" '
+            $0 ~ "^## " tag "([[:space:]]|$|\\()" {p=1; next}
+            /^## v/ && p {exit}
+            p {print}
+          ' CHANGELOG.md | sed -e '1{/^$/d;}' -e '${/^$/d;}' > release_notes.md
+
+          if [ ! -s release_notes.md ]; then
+            echo "FAIL: no changelog section found for $tag"
+            exit 1
+          fi
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*.zip
+          files: |
+            dist/*.zip
+            dist/SHA256SUMS
           body_path: release_notes.md
           draft: false
           prerelease: false

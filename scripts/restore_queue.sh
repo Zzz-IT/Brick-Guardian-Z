@@ -16,6 +16,7 @@ save_good_snapshot() {
   for dir in "$ADB_ROOT/modules"/*; do
     [ -d "$dir" ] || continue
     local id="${dir##*/}"
+    is_guardian_self "$id" && continue
     [ -f "$dir/module.prop" ] || continue
 
     local vc="$(grep '^versionCode=' "$dir/module.prop" 2>/dev/null | cut -d= -f2)"
@@ -39,7 +40,6 @@ build_module_restore_queue() {
     return 0
   fi
 
-  local restore_unknown="$(get_config RESTORE_UNKNOWN_DISABLED_MODULES 0)"
   local guardian_disabled="$MODDIR/state/guardian_disabled_modules.list"
 
   for dir in "$ADB_ROOT/modules"/*; do
@@ -58,8 +58,8 @@ build_module_restore_queue() {
       is_guardian_disabled=1
     fi
 
-    # 如果不是我们禁用的，且用户未开启未知全量恢复，则不加入自动恢复队列
-    if [ "$is_guardian_disabled" = "0" ] && [ "$restore_unknown" != "1" ]; then
+    # 如果不是我们禁用的，则不加入自动恢复队列
+    if [ "$is_guardian_disabled" = "0" ]; then
       continue
     fi
 

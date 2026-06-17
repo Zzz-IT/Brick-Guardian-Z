@@ -2,20 +2,19 @@
 set -euo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$DIR/mock_env.sh"
+. "$DIR/mock_env.sh"
+setup_env
 
 echo "Running customize.sh default config test..."
 
-# 运行 customize.sh
-export MODPATH="$ADB_ROOT/brick-guardian-z"
-mkdir -p "$MODPATH"
+export MODPATH="$MODDIR"
 
-# 覆盖 ui_print
 ui_print() {
   echo "$1"
 }
 export -f ui_print
 
+rm -f "$MODPATH/config/default.conf"
 bash "$MODDIR/customize.sh" > /dev/null
 
 conf="$MODPATH/config/default.conf"
@@ -33,5 +32,10 @@ if [ "$t_target" != "2" ] || [ "$t_broad" != "4" ] || [ "$t_self" != "5" ]; then
   exit 1
 fi
 
-echo "PASS: customize.sh 默认配置写入正确 (2/4/5)"
+if grep -qE 'magisk-brick-guardian|first_run_repair|modules_update|quarantine' "$MODDIR/customize.sh"; then
+  echo "FAIL: customize.sh 仍包含旧版处理逻辑"
+  exit 1
+fi
+
+echo "PASS: customize.sh 默认配置写入正确且无旧版逻辑"
 exit 0

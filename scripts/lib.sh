@@ -94,3 +94,13 @@ is_valid_module_id() {
   local id="$1"
   echo "$id" | grep -Eq '^[a-zA-Z][a-zA-Z0-9._-]+$'
 }
+
+append_unique_line() {
+  local file="$1"
+  local value="$2"
+  [ -n "$value" ] || return 0
+  if [ -f "$file" ] && grep -Fxq "$value" "$file"; then
+    return 0
+  fi
+  echo "$value" >> "$file"
+}

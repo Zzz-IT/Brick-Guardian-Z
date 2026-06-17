@@ -131,3 +131,6 @@ phone_logs/
 .idea/
 test_env/
 dist/
+
+# Allow tests/bin/ for windows zip mocks
+!tests/bin/
