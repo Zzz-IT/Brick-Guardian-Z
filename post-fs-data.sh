@@ -3,13 +3,15 @@
 
 MODDIR=${0%/*}
 
-# 早期启动阶段简单的日志记录函数
-log_info() {
-  echo "[INFO] $1" >> "$MODDIR/logs/guardian.log"
-}
-
-# 早期追踪 Boot ID 以便即使卡死在 post-fs-data 后也能计数
 mkdir -p "$MODDIR/state" "$MODDIR/logs" 2>/dev/null
+
+if [ -f "$MODDIR/scripts/lib.sh" ]; then
+  . "$MODDIR/scripts/lib.sh"
+else
+  log_info() {
+    echo "[INFO] $1" >> "$MODDIR/logs/guardian.log"
+  }
+fi
 
 # 无论任何启动条件，首先记录早期启动尝试
 boot_id_file="${MOCK_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}"

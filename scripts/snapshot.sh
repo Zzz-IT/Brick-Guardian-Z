@@ -36,5 +36,13 @@ save_good_snapshot() {
   done
 
   mv -f "$tmp" "$out"
+
+  local count
+  count="$(wc -l < "$out" 2>/dev/null || echo 0)"
+  case "$count" in
+    ''|*[!0-9]*) count=0 ;;
+  esac
+  printf '%s\n' "$count" > "$MODDIR/state/good_modules_count"
+
   sync
 }

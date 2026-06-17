@@ -16,6 +16,8 @@ forbidden=(
   "接管队列"
   "package restrictions"
   "全局脚本"
+  "手动清除日志"
+  "clear_logs"
 )
 
 for f in "${forbidden[@]}"; do
@@ -33,7 +35,6 @@ required=(
   "白名单模块"
   "最近异常禁用模块"
   "最近日志"
-  "手动清除日志"
 )
 
 for r in "${required[@]}"; do

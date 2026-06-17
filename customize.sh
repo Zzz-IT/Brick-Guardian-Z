@@ -41,14 +41,15 @@ if [ ! -f "$MODPATH/config/whitelist.conf" ]; then
 EOF
 fi
 
-# 清理旧版内部恢复状态，仅限本模块 state 目录
+# 清理旧版内部恢复/手动日志状态，仅限本模块 state 目录
 rm -f "$MODPATH/state/module_restore.queue" \
       "$MODPATH/state/testing_module" \
       "$MODPATH/state/last_restored_module" \
       "$MODPATH/state/failed_script" \
       "$MODPATH/state/testing_script" \
       "$MODPATH/state/script_restore.queue" \
-      "$MODPATH/state/script_manual_review.queue" 2>/dev/null
+      "$MODPATH/state/script_manual_review.queue" \
+      "$MODPATH/state/clear_logs" 2>/dev/null
 
 rm -f "$MODPATH"/state/failed_module.* 2>/dev/null
 

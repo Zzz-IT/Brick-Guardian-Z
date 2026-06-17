@@ -142,30 +142,39 @@ handle_bootloop() {
   # 1. 精准禁用嫌疑模块
   if [ "$attempts" -ge "$targeted_threshold" ] && [ "$attempts" -lt "$broad_threshold" ]; then
     log_error "达到精准禁用阈值，正在识别并禁用嫌疑模块..."
-    get_suspect_modules || true
 
     local suspect_list="$MODDIR/state/suspect_modules.tsv"
     local disabled_any=0
 
-    if [ -s "$suspect_list" ]; then
-      while IFS= read -r id; do
-        is_valid_module_id "$id" || continue
-        is_guardian_self "$id" && continue
+    if get_suspect_modules; then
+      if [ -s "$suspect_list" ]; then
+        while IFS= read -r id; do
+          is_valid_module_id "$id" || continue
+          is_guardian_self "$id" && continue
 
-        if ! is_whitelisted "$id"; then
-          touch "$ADB_ROOT/modules/$id/disable"
-          append_unique_line "$MODDIR/state/guardian_disabled_modules.list" "$id"
-          log_info "精准禁用嫌疑模块: $id"
-          disabled_any=1
-        fi
-      done < "$suspect_list"
-    fi
+          if ! is_whitelisted "$id"; then
+            touch "$ADB_ROOT/modules/$id/disable"
+            append_unique_line "$MODDIR/state/guardian_disabled_modules.list" "$id"
+            log_info "精准禁用嫌疑模块: $id"
+            disabled_any=1
+          else
+            log_info "嫌疑模块受白名单保护，跳过禁用: $id"
+          fi
+        done < "$suspect_list"
+      fi
 
-    if [ "$disabled_any" = "1" ]; then
-      _set_state_unlocked "last_action" "已禁用嫌疑模块。"
-      release_lock
-      apply_recovery_and_reboot
-      return 0
+      if [ "$disabled_any" = "1" ]; then
+        _set_state_unlocked "last_action" "已禁用嫌疑模块。"
+        release_lock
+        apply_recovery_and_reboot
+        return 0
+      else
+        _set_state_unlocked "last_action" "已检查嫌疑模块，但没有可禁用项。"
+        log_warn "已检查嫌疑模块，但没有可禁用项。"
+      fi
+    else
+      _set_state_unlocked "last_action" "缺少健康快照，无法精准识别嫌疑模块。"
+      log_warn "缺少健康快照，无法精准识别嫌疑模块。"
     fi
   fi
 
@@ -209,6 +218,7 @@ handle_bootloop() {
       apply_recovery_and_reboot
       return 0
     else
+      _set_state_unlocked "last_action" "达到大范围禁用阈值，但没有可禁用模块，已跳过重启。"
       log_warn "达到大范围禁用阈值，但没有可禁用模块，跳过重启。"
     fi
   fi

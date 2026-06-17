@@ -4,13 +4,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 if ! command -v zip >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
-  if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-    echo "FAIL: zip or unzip not found in CI environment, required for release validation"
-    exit 1
-  else
-    echo "SKIP: zip or unzip not found in local environment"
-    exit 2
-  fi
+  zip() {
+    python "$ROOT/tools/zip_helper.py" zip "$@"
+  }
+  unzip() {
+    python "$ROOT/tools/zip_helper.py" unzip "$@"
+  }
 fi
 
 bash "$ROOT/tools/build_zip.sh"

@@ -11,16 +11,7 @@ elif [ -d "$ADB_ROOT/ap" ]; then
   root_manager="APatch"
 fi
 
-clear_marker="$MODDIR/state/clear_logs"
-if [ -f "$clear_marker" ]; then
-  rm -f "$MODDIR/logs/guardian.log" \
-        "$MODDIR/logs/guardian.log.1" \
-        "$MODDIR/logs/guardian.log.2" \
-        "$MODDIR/logs/guardian.log.3" \
-        "$clear_marker" 2>/dev/null
-  mkdir -p "$MODDIR/logs" 2>/dev/null
-  echo "[INFO] 日志已由用户手动清除" >> "$MODDIR/logs/guardian.log"
-fi
+
 
 echo "Brick Guardian Z"
 echo ""
@@ -40,7 +31,11 @@ fi
 echo "- 上次启动状态: $health"
 
 if [ -f "$MODDIR/state/good_modules.tsv" ]; then
-  echo "- 健康快照: 存在"
+  snap_count="$(cat "$MODDIR/state/good_modules_count" 2>/dev/null)"
+  case "$snap_count" in
+    ''|*[!0-9]*) snap_count="$(wc -l < "$MODDIR/state/good_modules.tsv" 2>/dev/null || echo 0)" ;;
+  esac
+  echo "- 健康快照: 存在 (${snap_count:-0} 个模块)"
 elif [ "$(cat "$MODDIR/state/last_health_status" 2>/dev/null)" = "healthy" ]; then
   echo "- 健康快照: 异常"
 else
@@ -119,10 +114,7 @@ else
   echo "暂无日志"
 fi
 
-echo ""
-echo "手动清除日志:"
-echo "su -c 'touch $MODDIR/state/clear_logs'"
-echo "然后重新点击 Action。"
+
 
 case "$root_manager" in
   KernelSU|APatch)

@@ -8,16 +8,34 @@ if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 fi
 
+LOG_MAX_BYTES="${LOG_MAX_BYTES:-262144}"
+LOG_MAX_BACKUPS="${LOG_MAX_BACKUPS:-3}"
+
 rotate_log() {
   local log_file="$MODDIR/logs/guardian.log"
-  if [ -f "$log_file" ]; then
-    local size=$(stat -c %s "$log_file" 2>/dev/null || echo 0)
-    if [ "$size" -gt 512000 ]; then
-      mv -f "$log_file.2" "$log_file.3" 2>/dev/null
-      mv -f "$log_file.1" "$log_file.2" 2>/dev/null
-      mv -f "$log_file" "$log_file.1" 2>/dev/null
-    fi
-  fi
+  local size
+
+  mkdir -p "$MODDIR/logs" 2>/dev/null
+
+  [ -f "$log_file" ] || return 0
+
+  size="$(wc -c < "$log_file" 2>/dev/null || echo 0)"
+  case "$size" in
+    ''|*[!0-9]*) size=0 ;;
+  esac
+
+  [ "$size" -gt "$LOG_MAX_BYTES" ] || return 0
+
+  rm -f "$log_file.$LOG_MAX_BACKUPS" 2>/dev/null
+
+  local i="$LOG_MAX_BACKUPS"
+  while [ "$i" -gt 1 ]; do
+    local prev=$((i - 1))
+    [ -f "$log_file.$prev" ] && mv -f "$log_file.$prev" "$log_file.$i" 2>/dev/null
+    i=$prev
+  done
+
+  mv -f "$log_file" "$log_file.1" 2>/dev/null
 }
 
 log_info() {
