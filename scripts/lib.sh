@@ -87,7 +87,7 @@ is_whitelisted() {
 
 is_guardian_self() {
   local id="$1"
-  [ "$id" = "brick-guardian-z" ] || [ "$id" = "magisk-brick-guardian" ]
+  [ "$id" = "brick-guardian-z" ]
 }
 
 is_valid_module_id() {

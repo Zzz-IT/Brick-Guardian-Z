@@ -1,33 +1,18 @@
 #!/system/bin/sh
 # Brick Guardian Z customize.sh
 
-# UI Print 封装
 print_modname() {
   ui_print "*******************************"
-  ui_print "       Brick Guardian Z       "
+  ui_print "       Brick Guardian Z        "
   ui_print "*******************************"
 }
 
 print_modname
 
-# 初始化基础目录
 mkdir -p "$MODPATH/state"
 mkdir -p "$MODPATH/logs"
 mkdir -p "$MODPATH/config"
-mkdir -p "$MODPATH/quarantine"
 
-# 仅作为保险，如果检测到旧模块正在运行，临时禁用它，但不作为迁移的必须条件
-legacy="/data/adb/modules/magisk-brick-guardian"
-if [ -d "$legacy" ]; then
-  ui_print "- 检测到旧版 magisk-brick-guardian 模块！"
-  ui_print "- 为防止冲突，正在临时禁用旧模块..."
-  touch "$legacy/disable" 2>/dev/null
-fi
-
-# 无论如何，都写入第一次启动修复标志，用于扫描并隔离遗留的拦截数据
-echo "1" > "$MODPATH/state/first_run_repair_pending"
-
-# 生成默认配置
 if [ ! -f "$MODPATH/config/default.conf" ]; then
   cat > "$MODPATH/config/default.conf" <<'EOF'
 ENABLED=1
@@ -38,25 +23,25 @@ HEALTH_STABLE_SAMPLES=3
 HEALTH_SAMPLE_INTERVAL_SEC=5
 
 # 救砖阈值
-TARGETED_RECOVERY_THRESHOLD=3
-BROAD_RECOVERY_THRESHOLD=6
-SELF_DISABLE_THRESHOLD=8
+TARGETED_RECOVERY_THRESHOLD=2
+BROAD_RECOVERY_THRESHOLD=4
+SELF_DISABLE_THRESHOLD=5
 
-# 自动恢复
+# 自动恢复守护禁用过的模块
 AUTO_RESTORE_DISABLED_MODULES=1
-FIRST_RUN_RESTORE_UNKNOWN_DISABLED_MODULES=1
 RESTORE_UNKNOWN_DISABLED_MODULES=0
-
-# 脚本恢复
-AUTO_RESTORE_LATE_GLOBAL_SCRIPTS=1
-AUTO_RESTORE_EARLY_GLOBAL_SCRIPTS=0
-
-# 旧模块擦屁股
-AUTO_QUARANTINE_MODULES_UPDATE_BAK=1
 
 # 兜底开关
 ALLOW_BROAD_DISABLE=1
 ALLOW_SELF_DISABLE=1
+EOF
+fi
+
+if [ ! -f "$MODPATH/config/whitelist.conf" ]; then
+  cat > "$MODPATH/config/whitelist.conf" <<'EOF'
+# 每行一个模块 ID
+# 示例:
+# zygisk_lsposed
 EOF
 fi
 

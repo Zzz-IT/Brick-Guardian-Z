@@ -19,18 +19,14 @@ apply_recovery_and_reboot() {
 }
 
 _mark_testing_success_unlocked() {
-  local module=$(get_state "testing_module")
+  local module
+  module="$(get_state "testing_module")"
+
   if [ -n "$module" ]; then
     log_info "测试模块启动成功: $module"
     _clear_state_unlocked "testing_module"
+    _set_state_unlocked "last_restored_module" "$module"
     _set_state_unlocked "last_action" "成功恢复模块: $module"
-  fi
-
-  local script=$(get_state "testing_script")
-  if [ -n "$script" ]; then
-    log_info "测试脚本启动成功: $script"
-    _clear_state_unlocked "testing_script"
-    _set_state_unlocked "last_action" "成功恢复脚本: $script"
   fi
 
   _set_state_unlocked "last_health_status" "healthy"
@@ -38,9 +34,6 @@ _mark_testing_success_unlocked() {
 }
 
 handle_healthy_boot() {
-  local need_first_run=0
-  local first_run_ok=0
-
   acquire_lock
 
   local boot_id_file="${MOCK_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}"
@@ -48,53 +41,21 @@ handle_healthy_boot() {
   local decision="$(get_state "decision_$boot_id")"
 
   if [ -n "$boot_id" ] && [ -n "$decision" ]; then
-    # 当前启动已经做过健康或失败决策，防止并发竞争
     release_lock
     return 0
   fi
 
   log_info "系统健康，开始执行健康的守护任务。 (Boot ID: $boot_id)"
-  
+
   if [ -n "$boot_id" ]; then
     _set_state_unlocked "decision_$boot_id" "healthy"
   fi
 
-  # 检查是否存在待处理的首次清理任务
-  if [ -f "$MODDIR/state/first_run_repair_pending" ]; then
-    _set_state_unlocked "first_run_repair_running" "1"
-    need_first_run=1
-  fi
-  
-  release_lock
-
-  # 在锁外执行耗时的 I/O 擦屁股操作，防止长时间阻塞
-  if [ "$need_first_run" = "1" ]; then
-    log_info "正在执行首次擦屁股清理任务..."
-    . "$MODDIR/scripts/first_run_repair.sh"
-    if run_first_run_repair; then
-      first_run_ok=1
-    else
-      log_warn "首次擦屁股操作部分失败，保留 pending 状态待下次健康启动重试。"
-    fi
-    
-    acquire_lock
-    if [ "$first_run_ok" = "1" ]; then
-      _clear_state_unlocked "first_run_repair_pending"
-    fi
-    _clear_state_unlocked "first_run_repair_running"
-    release_lock
-  fi
-
-  # 重新加锁处理后续快速状态机操作
-  acquire_lock
-
   _mark_testing_success_unlocked
 
-  # 保存当前健康的模块快照
   if [ -f "$MODDIR/scripts/restore_queue.sh" ]; then
     . "$MODDIR/scripts/restore_queue.sh"
     save_good_snapshot
-    # 尝试恢复下一项
     restore_next_item
   fi
 
@@ -215,9 +176,9 @@ handle_bootloop() {
     return 0
   fi
 
-  local targeted_threshold="$(get_config TARGETED_RECOVERY_THRESHOLD 3)"
-  local broad_threshold="$(get_config BROAD_RECOVERY_THRESHOLD 6)"
-  local self_disable_threshold="$(get_config SELF_DISABLE_THRESHOLD 8)"
+  local targeted_threshold="$(get_config TARGETED_RECOVERY_THRESHOLD 2)"
+  local broad_threshold="$(get_config BROAD_RECOVERY_THRESHOLD 4)"
+  local self_disable_threshold="$(get_config SELF_DISABLE_THRESHOLD 5)"
 
   # 2. 精准禁用嫌疑模块（新安装、刚更新、刚启用的模块）
   if [ "$attempts" -ge "$targeted_threshold" ] && [ "$attempts" -lt "$broad_threshold" ]; then

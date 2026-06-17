@@ -4,118 +4,124 @@
 MODDIR=${0%/*}
 . "$MODDIR/scripts/lib.sh"
 
-echo "Brick Guardian Z (安全守护)"
-echo ""
-echo "状态 (Status):"
-
-# Root 管理器检测
+root_manager="Magisk"
 if [ -d "$ADB_ROOT/ksu" ]; then
-  echo "- Root 管理器: KernelSU"
+  root_manager="KernelSU"
 elif [ -d "$ADB_ROOT/ap" ]; then
-  echo "- Root 管理器: APatch"
-else
-  echo "- Root 管理器: Magisk"
+  root_manager="APatch"
 fi
 
-if [ -f "$MODDIR/state/first_run_repair_pending" ]; then
-  echo "- 首次开机清理状态: 待处理 (pending)"
-else
-  echo "- 首次开机清理状态: 已完成 (completed)"
+clear_marker="$MODDIR/state/clear_logs"
+if [ -f "$clear_marker" ]; then
+  rm -f "$MODDIR/logs/guardian.log" \
+        "$MODDIR/logs/guardian.log.1" \
+        "$MODDIR/logs/guardian.log.2" \
+        "$MODDIR/logs/guardian.log.3" \
+        "$clear_marker" 2>/dev/null
+  mkdir -p "$MODDIR/logs" 2>/dev/null
+  echo "[INFO] 日志已由用户手动清除" >> "$MODDIR/logs/guardian.log"
 fi
 
-if [ -f "$ADB_ROOT/modules/magisk-brick-guardian/disable" ]; then
-  echo "- 旧版遗留模块: 已禁用 (disabled)"
-else
-  echo "- 旧版遗留模块: 未找到或正处于激活状态"
-fi
+echo "Brick Guardian Z"
+echo ""
 
-# 基本健康与测试统计
+echo "状态概览:"
+echo "- Root 管理器: $root_manager"
+
+health="未知"
 if [ -f "$MODDIR/state/last_health_status" ]; then
-  echo "- 上次启动健康度: $(cat "$MODDIR/state/last_health_status")"
+  raw_health="$(cat "$MODDIR/state/last_health_status" 2>/dev/null)"
+  case "$raw_health" in
+    healthy) health="正常" ;;
+    bootloop) health="异常" ;;
+    *) health="未知" ;;
+  esac
+fi
+echo "- 上次启动状态: $health"
+
+if [ -s "$MODDIR/state/good_modules.tsv" ]; then
+  echo "- 健康快照: 存在"
 else
-  echo "- 上次启动健康度: 未知 (unknown)"
+  echo "- 健康快照: 异常"
 fi
 
 if [ -f "$MODDIR/state/boot_attempts" ]; then
-  echo "- 当前未健康启动次数 (boot_attempts): $(cat "$MODDIR/state/boot_attempts")"
+  echo "- 异常启动次数: $(cat "$MODDIR/state/boot_attempts" 2>/dev/null)"
 else
-  echo "- 当前未健康启动次数 (boot_attempts): 0"
+  echo "- 异常启动次数: 0"
 fi
 
-echo ""
-echo "自动修复与接管队列 (Repair queue):"
-if [ -f "$MODDIR/state/quarantined_modules_update" ]; then
-  echo "- modules_update.bak (更新拦截残留): 已隔离"
-else
-  echo "- modules_update.bak (更新拦截残留): 无"
-fi
-
-if [ -f "$MODDIR/state/module_restore.queue" ]; then
-  q_len=$(wc -l < "$MODDIR/state/module_restore.queue")
-  echo "- 队列中等待恢复的模块数: $q_len"
-else
-  echo "- 队列中等待恢复的模块数: 0"
-fi
-
-if [ -f "$MODDIR/state/script_restore.queue" ]; then
-  s_len=$(wc -l < "$MODDIR/state/script_restore.queue")
-  echo "- 队列中等待恢复的脚本数: $s_len"
-else
-  echo "- 队列中等待恢复的脚本数: 0"
-fi
-
-echo "- package restrictions (应用冻结限制): 无法验证/无备份"
-
-echo ""
-echo "当前恢复测试项 (Current testing):"
-if [ -f "$MODDIR/state/testing_module" ]; then
-  echo "- 测试中模块: $(cat "$MODDIR/state/testing_module")"
-else
-  echo "- 测试中模块: 无"
-fi
-
-if [ -f "$MODDIR/state/testing_script" ]; then
-  echo "- 测试中脚本: $(cat "$MODDIR/state/testing_script")"
-else
-  echo "- 测试中脚本: 无"
-fi
-
-echo ""
 if [ -f "$MODDIR/state/last_action" ]; then
-  echo "最后执行的动作 (Last action):"
-  cat "$MODDIR/state/last_action"
+  echo "- 最后动作: $(cat "$MODDIR/state/last_action" 2>/dev/null)"
 else
-  echo "最后执行的动作 (Last action): 无"
+  echo "- 最后动作: 无"
 fi
 
 echo ""
-echo "白名单状态 (Whitelist):"
+echo "模块保护:"
+
+if [ -f "$MODDIR/state/rescue_count" ]; then
+  echo "- 已救砖次数: $(cat "$MODDIR/state/rescue_count" 2>/dev/null)"
+else
+  echo "- 已救砖次数: 0"
+fi
+
+echo "- 白名单模块:"
 whitelist_conf="$MODDIR/config/whitelist.conf"
+whitelist_printed=0
 if [ -f "$whitelist_conf" ]; then
-  whitelist_count="$(
-    awk '
-      {
-        line=$0
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
-      }
-      line == "" {next}
-      line ~ /^#/ {next}
-      line ~ /^[A-Za-z][A-Za-z0-9._-]+$/ {count++}
-      END {print count+0}
-    ' "$whitelist_conf"
-  )"
-  echo "- 路径: $whitelist_conf"
-  echo "- 数量: $whitelist_count 个"
-else
-  echo "- 数量: 0 (未找到配置)"
+  while IFS= read -r line; do
+    line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    [ -n "$line" ] || continue
+    case "$line" in \#*) continue ;; esac
+    if is_valid_module_id "$line"; then
+      echo "   $line"
+      whitelist_printed=1
+    fi
+  done < "$whitelist_conf"
+fi
+if [ "$whitelist_printed" = "0" ]; then
+  echo "   无"
 fi
 
+echo "- 最近异常禁用模块:"
+tmp_disabled="$MODDIR/state/.action_disabled.tmp.$$"
+: > "$tmp_disabled"
+
+if [ -f "$MODDIR/state/guardian_disabled_modules.list" ]; then
+  awk 'NF && !seen[$0]++ {print $0}' "$MODDIR/state/guardian_disabled_modules.list" 2>/dev/null \
+    | tail -n 10 > "$tmp_disabled"
+fi
+
+if [ -s "$tmp_disabled" ]; then
+  while IFS= read -r id; do
+    if is_valid_module_id "$id"; then
+      echo "   $id"
+    fi
+  done < "$tmp_disabled"
+else
+  echo "   无"
+fi
+
+rm -f "$tmp_disabled"
+
 echo ""
-echo "=============================="
-echo "    最近运行日志 (Last Logs)  "
-echo "=============================="
+echo "最近日志:"
 if [ -f "$MODDIR/logs/guardian.log" ]; then
   tail -n 20 "$MODDIR/logs/guardian.log"
 else
   echo "暂无日志"
 fi
+
+echo ""
+echo "手动清除日志:"
+echo "su -c 'touch $MODDIR/state/clear_logs'"
+echo "然后重新点击 Action。"
+
+case "$root_manager" in
+  KernelSU|APatch)
+    sleep 30
+    ;;
+esac
+
+exit 0

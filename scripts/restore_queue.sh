@@ -58,13 +58,6 @@ build_module_restore_queue() {
       is_guardian_disabled=1
     fi
 
-    # 首次清理阶段的特权：如果存在首次清理标记且开启了 FIRST_RUN_RESTORE，则允许恢复未知 disable
-    if [ -f "$MODDIR/state/first_run_repair_pending" ] || [ -f "$MODDIR/state/first_run_repair_running" ]; then
-      if [ "$(get_config FIRST_RUN_RESTORE_UNKNOWN_DISABLED_MODULES 1)" = "1" ]; then
-        restore_unknown=1
-      fi
-    fi
-
     # 如果不是我们禁用的，且用户未开启未知全量恢复，则不加入自动恢复队列
     if [ "$is_guardian_disabled" = "0" ] && [ "$restore_unknown" != "1" ]; then
       continue
@@ -80,40 +73,6 @@ build_module_restore_queue() {
   done
 
   sort "$queue" -o "$queue"
-}
-
-build_script_restore_queue() {
-  local queue="$MODDIR/state/script_restore.queue"
-  : > "$queue"
-
-  # 如果全局开关关闭，不生成恢复队列
-  if [ "$(get_config AUTO_RESTORE_LATE_GLOBAL_SCRIPTS 1)" != "1" ]; then
-    return 0
-  fi
-
-  for d in "$ADB_ROOT/service.d" "$ADB_ROOT/boot-completed.d"; do
-    [ -d "$d" ] || continue
-
-    for f in "$d"/*; do
-      [ -e "$f" ] || continue
-      local mode="$(stat -c %a "$f" 2>/dev/null)"
-      [ "$mode" = "0" ] || [ "$mode" = "000" ] || continue
-
-      echo "AUTO	$f	755" >> "$queue"
-    done
-  done
-
-  for d in "$ADB_ROOT/post-fs-data.d" "$ADB_ROOT/post-mount.d"; do
-    [ -d "$d" ] || continue
-
-    for f in "$d"/*; do
-      [ -e "$f" ] || continue
-      local mode="$(stat -c %a "$f" 2>/dev/null)"
-      [ "$mode" = "0" ] || [ "$mode" = "000" ] || continue
-
-      echo "MANUAL	$f	755" >> "$MODDIR/state/script_manual_review.queue"
-    done
-  done
 }
 
 restore_one_module_for_testing() {
@@ -136,42 +95,14 @@ restore_one_module_for_testing() {
   fi
 }
 
-restore_one_script_for_testing() {
-  local queue="$MODDIR/state/script_restore.queue"
-  local testing="$MODDIR/state/testing_script"
-
-  [ -f "$testing" ] && return 0
-  [ -s "$queue" ] || return 0
-
-  # 使用 awk 处理带有制表符分隔的行，防止空格被吞或解析错误
-  local path="$(head -n 1 "$queue" | awk -F '\t' '{print $2}')"
-  local mode="$(head -n 1 "$queue" | awk -F '\t' '{print $3}')"
-
-  [ -e "$path" ] || {
-    sed -i '1d' "$queue"
-    return 0
-  }
-
-  chmod "$mode" "$path"
-  _set_state_unlocked "testing_script" "$path"
-  sed -i '1d' "$queue"
-  log_info "已恢复测试脚本（将在下一次启动时验证）: $path"
-  _set_state_unlocked "last_action" "已尝试恢复并测试全局脚本: $path"
-}
-
 restore_next_item() {
   # 注意：此函数假定已被外部锁定（在 handle_healthy_boot 内调用）
-  if [ -f "$MODDIR/state/testing_module" ] || [ -f "$MODDIR/state/testing_script" ]; then
+  if [ -f "$MODDIR/state/testing_module" ]; then
     return 0
   fi
 
   if [ -s "$MODDIR/state/module_restore.queue" ] && [ "$(get_config AUTO_RESTORE_DISABLED_MODULES 1)" = "1" ]; then
     restore_one_module_for_testing
-    return 0
-  fi
-
-  if [ -s "$MODDIR/state/script_restore.queue" ] && [ "$(get_config AUTO_RESTORE_LATE_GLOBAL_SCRIPTS 1)" = "1" ]; then
-    restore_one_script_for_testing
     return 0
   fi
 }

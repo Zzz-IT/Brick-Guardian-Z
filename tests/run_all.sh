@@ -8,9 +8,20 @@ echo "    Brick Guardian Z 测试套件启动    "
 echo "======================================"
 
 shopt -s nullglob
-tests=( "$DIR"/test_*.sh )
+TESTS=(
+  "test_basic_recovery.sh"
+  "test_testing_module_validation.sh"
+  "test_testing_module_rollback.sh"
+  "test_suspect_detection.sh"
+  "test_broad_disable_respects_whitelist.sh"
+  "test_self_disable.sh"
+  "test_concurrent_lock.sh"
+  "test_lock_timeout_override.sh"
+  "test_customize_defaults.sh"
+  "test_action_output.sh"
+)
 
-if [ "${#tests[@]}" -eq 0 ]; then
+if [ "${#TESTS[@]}" -eq 0 ]; then
   echo "FAIL: 未找到任何测试脚本"
   exit 1
 fi
@@ -19,18 +30,19 @@ fail_count=0
 pass_count=0
 skip_count=0
 
-for test_script in "${tests[@]}"; do
+for test_script in "${TESTS[@]}"; do
+  test_path="$DIR/$test_script"
   test_name="$(basename "$test_script")"
   echo ">>> 运行: $test_name"
 
-  if [ ! -r "$test_script" ]; then
+  if [ ! -r "$test_path" ]; then
     echo "[$test_name] 结果: FAIL (not readable)"
     fail_count=$((fail_count + 1))
     echo "--------------------------------------"
     continue
   fi
 
-  if ! grep -qE "PASS:|SKIP:" "$test_script"; then
+  if ! grep -qE "PASS:|SKIP:" "$test_path"; then
     echo "[$test_name] 结果: FAIL (empty or no assertions)"
     fail_count=$((fail_count + 1))
     echo "--------------------------------------"

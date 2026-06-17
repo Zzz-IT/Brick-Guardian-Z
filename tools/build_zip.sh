@@ -29,7 +29,6 @@ required=(
   scripts/state.sh
   scripts/healthcheck.sh
   scripts/recovery.sh
-  scripts/first_run_repair.sh
   scripts/restore_queue.sh
 )
 

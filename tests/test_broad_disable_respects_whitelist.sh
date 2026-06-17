@@ -26,11 +26,11 @@ EOF
 
 # 配置 BROAD_RECOVERY_THRESHOLD = 6
 cat > "$MODDIR/config/default.conf" <<EOF
-BROAD_RECOVERY_THRESHOLD=6
+BROAD_RECOVERY_THRESHOLD=4
 EOF
 
 # 模拟多次失败启动直到触发 broad disable
-_set_state_unlocked "boot_attempts" "6"
+_set_state_unlocked "boot_attempts" "4"
 
 # 执行 recovery.sh (会触发 broad disable)
 # 因为我们要测试 handle_bootloop 的效果，我们直接调用 handle_bootloop
