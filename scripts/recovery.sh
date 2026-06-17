@@ -260,6 +260,9 @@ handle_bootloop() {
   # 4. 如果精准禁用未生效，执行大范围禁用逻辑
   if [ "$attempts" -ge "$broad_threshold" ] && [ "$(get_config ALLOW_BROAD_DISABLE 1)" = "1" ]; then
     log_error "达到大范围禁用阈值。正在禁用所有非白名单模块。"
+    
+    local disabled_any=0
+    
     for dir in "$ADB_ROOT/modules"/*; do
       [ -d "$dir" ] || continue
       local id="${dir##*/}"
@@ -273,12 +276,18 @@ handle_bootloop() {
         touch "$dir/disable"
         echo "$id" >> "$MODDIR/state/guardian_disabled_modules.list"
         log_info "大范围禁用: $id"
+        disabled_any=1
       fi
     done
-    _set_state_unlocked "last_action" "拦截启动卡死！已执行大范围禁用（非白名单模块）。"
-    release_lock
-    apply_recovery_and_reboot
-    return 0
+    
+    if [ "$disabled_any" = "1" ]; then
+      _set_state_unlocked "last_action" "拦截启动卡死！已执行大范围禁用（非白名单模块）。"
+      release_lock
+      apply_recovery_and_reboot
+      return 0
+    else
+      log_warn "达到大范围禁用阈值，但没有可禁用模块，跳过重启。"
+    fi
   fi
 
   release_lock
