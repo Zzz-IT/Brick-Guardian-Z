@@ -37,7 +37,7 @@ log_error() {
 
 get_config() {
   local key="$1"
-  local default_val="$2"
+  local default_val="${2:-}"
   local val=""
 
   if [ -f "$MODDIR/config/default.conf" ]; then

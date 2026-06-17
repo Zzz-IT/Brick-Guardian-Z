@@ -13,6 +13,13 @@ for test_script in "$DIR"/test_*.sh; do
   test_name=$(basename "$test_script")
   echo ">>> 运行: $test_name"
   
+  if ! grep -q "PASS:" "$test_script"; then
+    echo "[$test_name] 结果: \033[31mFAIL\033[0m (empty or no assertions)"
+    fail_count=$((fail_count + 1))
+    echo "--------------------------------------"
+    continue
+  fi
+
   if bash "$test_script"; then
     echo "[$test_name] 结果: \033[32mPASS\033[0m"
     pass_count=$((pass_count + 1))

@@ -92,7 +92,18 @@ echo ""
 echo "白名单状态 (Whitelist):"
 whitelist_conf="$MODDIR/config/whitelist.conf"
 if [ -f "$whitelist_conf" ]; then
-  whitelist_count=$(awk '/^[[:space:]]*$/ {next} /^[[:space:]]*#/ {next} {count++} END {print count+0}' "$whitelist_conf")
+  whitelist_count="$(
+    awk '
+      {
+        line=$0
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+      }
+      line == "" {next}
+      line ~ /^#/ {next}
+      line ~ /^[A-Za-z][A-Za-z0-9._-]+$/ {count++}
+      END {print count+0}
+    ' "$whitelist_conf"
+  )"
   echo "- 路径: $whitelist_conf"
   echo "- 数量: $whitelist_count 个"
 else

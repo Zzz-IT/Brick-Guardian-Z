@@ -175,6 +175,13 @@ handle_bootloop() {
   # 1. 如果存在测试项，则回滚
   local module=$(get_state "testing_module")
   if [ -n "$module" ]; then
+    if ! is_valid_module_id "$module"; then
+      log_error "testing_module 状态非法，已清除: $module"
+      _clear_state_unlocked "testing_module"
+      release_lock
+      return 0
+    fi
+
     touch "$ADB_ROOT/modules/$module/disable" 2>/dev/null
     mv "$MODDIR/state/testing_module" "$MODDIR/state/failed_module.$module"
     log_error "测试模块导致了 Bootloop，已被重新禁用: $module"
@@ -186,6 +193,17 @@ handle_bootloop() {
 
   local script=$(get_state "testing_script")
   if [ -n "$script" ]; then
+    case "$script" in
+      "$ADB_ROOT/service.d/"* | "$ADB_ROOT/post-fs-data.d/"* | "$ADB_ROOT/boot-completed.d/"*)
+        ;;
+      *)
+        log_error "testing_script 状态非法，已清除: $script"
+        _clear_state_unlocked "testing_script"
+        release_lock
+        return 0
+        ;;
+    esac
+
     [ -e "$script" ] && chmod 000 "$script"
     mv "$MODDIR/state/testing_script" "$MODDIR/state/failed_script"
     log_error "测试脚本导致了 Bootloop，已重新取消执行权限: $script"
