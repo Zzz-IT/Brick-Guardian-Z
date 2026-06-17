@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# KSU Safe Guardian restore_queue.sh
+# Brick Guardian Z restore_queue.sh
 
 if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"

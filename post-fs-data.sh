@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# KSU Safe Guardian post-fs-data.sh
+# Brick Guardian Z post-fs-data.sh
 
 MODDIR=${0%/*}
 

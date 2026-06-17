@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y zip unzip awk
+
+      - name: Run tests
+        run: bash tests/run_all.sh
+
+      - name: Build release zip
+        run: bash tools/build_zip.sh
+
+      - name: Extract Changelog
+        id: extract_changelog
+        run: |
+          awk '/^## v/ {if (p) exit; p=1; next} p' CHANGELOG.md | sed -e '1{/^$/d;}' -e '${/^$/d;}' > release_notes.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

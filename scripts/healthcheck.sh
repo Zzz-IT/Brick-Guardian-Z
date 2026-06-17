@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# KSU Safe Guardian healthcheck.sh
+# Brick Guardian Z healthcheck.sh
 
 is_healthy_once() {
   [ "$(getprop sys.boot_completed)" = "1" ] || return 1

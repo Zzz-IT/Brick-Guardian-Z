@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# KSU Safe Guardian boot-completed.sh
+# Brick Guardian Z boot-completed.sh
 
 MODDIR=${0%/*}
 

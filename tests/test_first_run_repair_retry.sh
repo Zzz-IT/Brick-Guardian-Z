@@ -12,8 +12,8 @@ setup_env
 mkdir -p "$ADB_ROOT/modules_update.bak"
 
 # 制造目标目录无法创建的故障（将其变成一个文件）
-mkdir -p "$ADB_ROOT/ksu-safe-guardian"
-touch "$ADB_ROOT/ksu-safe-guardian/quarantine"
+mkdir -p "$ADB_ROOT/brick-guardian-z"
+touch "$ADB_ROOT/brick-guardian-z/quarantine"
 
 # 标记 pending
 _set_state_unlocked "first_run_repair_pending" "1"

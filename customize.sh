@@ -1,10 +1,10 @@
 #!/system/bin/sh
-# KSU Safe Guardian customize.sh
+# Brick Guardian Z customize.sh
 
 # UI Print 封装
 print_modname() {
   ui_print "*******************************"
-  ui_print "       KSU Safe Guardian       "
+  ui_print "       Brick Guardian Z       "
   ui_print "*******************************"
 }
 
@@ -60,5 +60,5 @@ ALLOW_SELF_DISABLE=1
 EOF
 fi
 
-ui_print "- KSU Safe Guardian 已安装完成！"
+ui_print "- Brick Guardian Z 已安装完成！"
 ui_print "- 重启后，模块将自动在后台守护系统启动。"

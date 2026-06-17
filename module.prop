@@ -1,6 +1,6 @@
-id=ksu-safe-guardian
-name=KSU Safe Guardian
+id=brick-guardian-z
+name=Brick Guardian Z
 version=v1.0.0
 versionCode=10000
 author=Zzz
-description=KSU-first bootloop protection module. No online update, no system modification, targeted module quarantine only.
+description=一个简洁、保守、自动化的防砖与救砖守护模块。

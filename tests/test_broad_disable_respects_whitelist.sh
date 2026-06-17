@@ -59,7 +59,7 @@ else
   exit 1
 fi
 
-if [ ! -f "$ADB_ROOT/modules/ksu-safe-guardian/disable" ]; then
+if [ ! -f "$ADB_ROOT/modules/brick-guardian-z/disable" ]; then
   echo "PASS: 自身模块被跳过"
 else
   echo "FAIL: 自身模块被错误禁用"

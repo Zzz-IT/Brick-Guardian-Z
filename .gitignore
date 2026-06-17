@@ -129,4 +129,5 @@ fabric.properties
 test-brick-module.zip
 phone_logs/
 .idea/
-test_env/ 
+test_env/
+dist/

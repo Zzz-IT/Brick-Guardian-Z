@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# KSU Safe Guardian service.sh
+# Brick Guardian Z service.sh
 
 MODDIR=${0%/*}
 

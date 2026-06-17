@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# KSU Safe Guardian uninstall.sh
+# Brick Guardian Z uninstall.sh
 
 # 模块自身的状态和日志文件都保存在模块目录内，
 # Magisk/KernelSU 会在卸载时自动删除整个目录。

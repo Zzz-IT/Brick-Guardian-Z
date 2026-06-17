@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# KSU Safe Guardian 核心库函数
+# Brick Guardian Z 核心库函数
 
 # 测试环境注入桩
 export ADB_ROOT="${ADB_ROOT:-/data/adb}"
@@ -87,7 +87,7 @@ is_whitelisted() {
 
 is_guardian_self() {
   local id="$1"
-  [ "$id" = "ksu-safe-guardian" ] || [ "$id" = "magisk-brick-guardian" ]
+  [ "$id" = "brick-guardian-z" ] || [ "$id" = "magisk-brick-guardian" ]
 }
 
 is_valid_module_id() {

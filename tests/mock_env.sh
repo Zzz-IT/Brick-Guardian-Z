@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Mock Environment for testing KSU Safe Guardian
+# Mock Environment for testing Brick Guardian Z
 
 # 设置基础目录
 MOCK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_DIR="$MOCK_DIR/test_env"
 export ADB_ROOT="$TEST_DIR/data/adb"
 export MOCK_BOOT_ID_FILE="$TEST_DIR/boot_id"
-export MODDIR="$ADB_ROOT/modules/ksu-safe-guardian"
+export MODDIR="$ADB_ROOT/modules/brick-guardian-z"
 
 # 清理并重建测试环境
 setup_env() {

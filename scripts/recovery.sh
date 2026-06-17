@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# KSU Safe Guardian recovery.sh
+# Brick Guardian Z recovery.sh
 
 if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"

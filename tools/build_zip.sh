@@ -7,7 +7,7 @@ OUT="$ROOT/dist"
 version="$(awk -F= '$1=="version"{print $2; exit}' "$ROOT/module.prop")"
 version="${version:-v1.0.0}"
 
-name="KSU-Safe-Guardian-${version}.zip"
+name="Brick-Guardian-Z-${version}.zip"
 
 rm -rf "$OUT"
 mkdir -p "$OUT"

@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# KSU Safe Guardian first_run_repair.sh
+# Brick Guardian Z first_run_repair.sh
 
 if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
@@ -8,7 +8,7 @@ fi
 . "$MODDIR/scripts/lib.sh"
 . "$MODDIR/scripts/state.sh"
 
-GLOBAL_QUARANTINE="$ADB_ROOT/ksu-safe-guardian/quarantine"
+GLOBAL_QUARANTINE="$ADB_ROOT/brick-guardian-z/quarantine"
 
 repair_modules_update_bak() {
   local bak="$ADB_ROOT/modules_update.bak"

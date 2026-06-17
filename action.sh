@@ -1,10 +1,10 @@
 #!/system/bin/sh
-# KSU Safe Guardian action.sh
+# Brick Guardian Z action.sh
 
 MODDIR=${0%/*}
 . "$MODDIR/scripts/lib.sh"
 
-echo "KSU Safe Guardian (安全守护)"
+echo "Brick Guardian Z (安全守护)"
 echo ""
 echo "状态 (Status):"
 

@@ -16,8 +16,8 @@ echo "id=module_a" > "$ADB_ROOT/modules/module_a/module.prop"
 echo "versionCode=1" >> "$ADB_ROOT/modules/module_a/module.prop"
 
 # 创建自身模块
-mkdir -p "$ADB_ROOT/modules/ksu-safe-guardian"
-echo "id=ksu-safe-guardian" > "$ADB_ROOT/modules/ksu-safe-guardian/module.prop"
+mkdir -p "$ADB_ROOT/modules/brick-guardian-z"
+echo "id=brick-guardian-z" > "$ADB_ROOT/modules/brick-guardian-z/module.prop"
 
 # 准备空的 good_modules.tsv 以便所有模块都被当做"新安装"（嫌疑犯）
 touch "$MODDIR/state/good_modules.tsv"
@@ -31,7 +31,7 @@ if ! grep -q "module_a" "$suspect_list"; then
   exit 1
 fi
 
-if grep -q "ksu-safe-guardian" "$suspect_list"; then
+if grep -q "brick-guardian-z" "$suspect_list"; then
   echo "FAIL: 自身模块被错误地识别为了嫌疑犯！"
   exit 1
 fi

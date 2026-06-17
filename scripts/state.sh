@@ -1,5 +1,5 @@
 #!/system/bin/sh
-# KSU Safe Guardian state.sh
+# Brick Guardian Z state.sh
 
 if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"

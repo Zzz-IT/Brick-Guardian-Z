@@ -4,7 +4,7 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 echo "======================================"
-echo "    KSU Safe Guardian 测试套件启动    "
+echo "    Brick Guardian Z 测试套件启动    "
 echo "======================================"
 
 shopt -s nullglob
