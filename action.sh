@@ -2,7 +2,7 @@
 # KSU Safe Guardian action.sh
 
 MODDIR=${0%/*}
-source "$MODDIR/scripts/lib.sh"
+. "$MODDIR/scripts/lib.sh"
 
 echo "KSU Safe Guardian (安全守护)"
 echo ""

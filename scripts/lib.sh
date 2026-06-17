@@ -35,13 +35,13 @@ get_config() {
 is_whitelisted() {
   local id="$1"
   if [ -f "$MODDIR/config/whitelist.conf" ]; then
-    if grep -qxE "${id}" "$MODDIR/config/whitelist.conf"; then
+    if grep -Fxq "${id}" "$MODDIR/config/whitelist.conf"; then
       return 0
     fi
   fi
   # 如果已经导入，同时检查旧版白名单
   if [ -f "$MODDIR/quarantine/legacy/whitelist.conf" ]; then
-    if grep -qxE "${id}" "$MODDIR/quarantine/legacy/whitelist.conf"; then
+    if grep -Fxq "${id}" "$MODDIR/quarantine/legacy/whitelist.conf"; then
       return 0
     fi
   fi
@@ -50,9 +50,6 @@ is_whitelisted() {
 
 is_valid_module_id() {
   local id="$1"
-  # 有效 ID 的正则匹配，大致符合 Magisk 规范（字母、数字及下划线/破折号）
-  case "$id" in
-    *[!a-zA-Z0-9_-]*) return 1 ;;
-    *) return 0 ;;
-  esac
+  # 官方要求：首字符为字母，其余为字母、数字、下划线、破折号或点号
+  echo "$id" | grep -Eq '^[a-zA-Z][a-zA-Z0-9._-]+$'
 }

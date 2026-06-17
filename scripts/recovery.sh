@@ -5,8 +5,18 @@ if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 fi
 
-source "$MODDIR/scripts/lib.sh"
-source "$MODDIR/scripts/state.sh"
+. "$MODDIR/scripts/lib.sh"
+. "$MODDIR/scripts/state.sh"
+
+apply_recovery_and_reboot() {
+  log_info "执行恢复动作后准备重启..."
+  sync
+  sleep 2
+  reboot
+  # 如果常规 reboot 失败，强制重启
+  sleep 5
+  reboot -f
+}
 
 mark_testing_success() {
   local module=$(get_state "testing_module")
@@ -27,6 +37,46 @@ mark_testing_success() {
   set_state "boot_attempts" "0"
 }
 
+get_suspect_modules() {
+  local suspect_list="$MODDIR/state/suspect_modules.tsv"
+  : > "$suspect_list"
+  
+  local good_snap="$MODDIR/state/good_modules.tsv"
+  if [ ! -f "$good_snap" ]; then
+    return 1
+  fi
+
+  for dir in /data/adb/modules/*; do
+    [ -d "$dir" ] || continue
+    local id="${dir##*/}"
+    [ -f "$dir/module.prop" ] || continue
+    [ -f "$dir/disable" ] && continue
+
+    local vc="$(grep '^versionCode=' "$dir/module.prop" 2>/dev/null | cut -d= -f2)"
+    local hash="$(sha256sum "$dir/module.prop" 2>/dev/null | awk '{print $1}')"
+    
+    # 查找此模块在快照中的记录
+    local snap_record="$(grep "^${id}	" "$good_snap")"
+    if [ -z "$snap_record" ]; then
+      # 新安装的模块
+      echo "$id" >> "$suspect_list"
+      continue
+    fi
+    
+    local snap_vc="$(echo "$snap_record" | cut -f2)"
+    local snap_hash="$(echo "$snap_record" | cut -f3)"
+    local snap_disabled="$(echo "$snap_record" | cut -f4)"
+    
+    if [ "$snap_disabled" = "1" ]; then
+      # 刚被启用的模块
+      echo "$id" >> "$suspect_list"
+    elif [ "$vc" != "$snap_vc" ] || [ "$hash" != "$snap_hash" ]; then
+      # 刚更新或被修改过的模块
+      echo "$id" >> "$suspect_list"
+    fi
+  done
+}
+
 handle_bootloop() {
   set_state "last_health_status" "bootloop"
   local attempts=$(increment_state "boot_attempts")
@@ -41,6 +91,7 @@ handle_bootloop() {
     mv "$MODDIR/state/testing_module" "$MODDIR/state/failed_module.$module"
     log_error "测试模块导致了 Bootloop，已被重新禁用: $module"
     set_state "last_action" "拦截启动卡死！已重新禁用测试模块: $module"
+    apply_recovery_and_reboot
     return 0
   fi
 
@@ -50,20 +101,50 @@ handle_bootloop() {
     mv "$MODDIR/state/testing_script" "$MODDIR/state/failed_script"
     log_error "测试脚本导致了 Bootloop，已重新取消执行权限: $script"
     set_state "last_action" "拦截启动卡死！已重新禁用测试脚本: $script"
+    apply_recovery_and_reboot
     return 0
   fi
 
-  # 2. 如果不是特定测试项导致的卡死，执行大范围禁用逻辑
+  local targeted_threshold=$(get_config TARGETED_RECOVERY_THRESHOLD 3)
   local broad_threshold=$(get_config BROAD_RECOVERY_THRESHOLD 5)
   local self_disable_threshold=$(get_config SELF_DISABLE_THRESHOLD 6)
 
+  # 2. 精准禁用嫌疑模块（新安装、刚更新、刚启用的模块）
+  if [ "$attempts" -ge "$targeted_threshold" ] && [ "$attempts" -lt "$broad_threshold" ]; then
+    log_error "达到精准禁用阈值，正在识别并禁用嫌疑模块..."
+    get_suspect_modules
+    local suspect_list="$MODDIR/state/suspect_modules.tsv"
+    local disabled_any=0
+    
+    if [ -s "$suspect_list" ]; then
+      while read id; do
+        is_valid_module_id "$id" || continue
+        [ "$id" = "ksu-safe-guardian" ] && continue
+        if ! is_whitelisted "$id"; then
+          touch "/data/adb/modules/$id/disable"
+          log_info "精准禁用嫌疑模块: $id"
+          disabled_any=1
+        fi
+      done < "$suspect_list"
+    fi
+    
+    if [ "$disabled_any" = "1" ]; then
+      set_state "last_action" "拦截启动卡死！已精准禁用最近变更的嫌疑模块。"
+      apply_recovery_and_reboot
+      return 0
+    fi
+  fi
+
+  # 3. 达到自我禁用阈值
   if [ "$attempts" -ge "$self_disable_threshold" ] && [ "$(get_config ALLOW_SELF_DISABLE 1)" = "1" ]; then
     touch "$MODDIR/disable"
     log_error "达到自我禁用阈值。守护模块已自我禁用，以防止陷入无限循环。"
     set_state "last_action" "拦截启动卡死！由于多次失败，守护模块已自我禁用。"
+    apply_recovery_and_reboot
     return 0
   fi
 
+  # 4. 如果精准禁用未生效，执行大范围禁用逻辑
   if [ "$attempts" -ge "$broad_threshold" ] && [ "$(get_config ALLOW_BROAD_DISABLE 1)" = "1" ]; then
     log_error "达到大范围禁用阈值。正在禁用所有非白名单模块。"
     for dir in /data/adb/modules/*; do
@@ -81,6 +162,7 @@ handle_bootloop() {
       fi
     done
     set_state "last_action" "拦截启动卡死！已执行大范围禁用（非白名单模块）。"
+    apply_recovery_and_reboot
     return 0
   fi
 }

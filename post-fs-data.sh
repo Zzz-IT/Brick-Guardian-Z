@@ -3,10 +3,27 @@
 
 MODDIR=${0%/*}
 
-# 用于早期启动阶段的简单日志记录函数
+# 早期启动阶段简单的日志记录函数
 log_info() {
   echo "[INFO] $1" >> "$MODDIR/logs/guardian.log"
 }
+
+# 早期追踪 Boot ID 以便即使卡死在 post-fs-data 后也能计数
+boot_id="$(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"
+last_seen="$(cat "$MODDIR/state/last_seen_boot_id" 2>/dev/null)"
+
+if [ -n "$boot_id" ] && [ "$boot_id" != "$last_seen" ]; then
+  # 使用原子写入的方式记录
+  tmp="$MODDIR/state/.last_seen_boot_id.tmp.$$"
+  printf '%s\n' "$boot_id" > "$tmp" && mv -f "$tmp" "$MODDIR/state/last_seen_boot_id"
+  
+  attempts="$(cat "$MODDIR/state/boot_attempts" 2>/dev/null)"
+  attempts=${attempts:-0}
+  attempts=$((attempts + 1))
+  
+  tmp_att="$MODDIR/state/.boot_attempts.tmp.$$"
+  printf '%s\n' "$attempts" > "$tmp_att" && mv -f "$tmp_att" "$MODDIR/state/boot_attempts"
+fi
 
 # 如果存在待处理的迁移任务，我们几乎不执行任何操作，避免在首次启动时产生误判
 if [ -f "$MODDIR/state/migration_pending" ]; then
@@ -16,6 +33,5 @@ if [ -f "$MODDIR/state/migration_pending" ]; then
   exit 0
 fi
 
-# 在标准模式下，post-fs-data 仅执行极少的检查，将主要工作留给 late_start 服务处理。
 log_info "post-fs-data 阶段已执行"
 exit 0

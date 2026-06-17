@@ -5,8 +5,30 @@ if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 fi
 
-source "$MODDIR/scripts/lib.sh"
-source "$MODDIR/scripts/state.sh"
+. "$MODDIR/scripts/lib.sh"
+. "$MODDIR/scripts/state.sh"
+
+save_good_snapshot() {
+  local out="$MODDIR/state/good_modules.tsv"
+  local tmp="$out.tmp.$$"
+
+  : > "$tmp"
+  for dir in /data/adb/modules/*; do
+    [ -d "$dir" ] || continue
+    local id="${dir##*/}"
+    [ -f "$dir/module.prop" ] || continue
+
+    local vc="$(grep '^versionCode=' "$dir/module.prop" 2>/dev/null | cut -d= -f2)"
+    local hash="$(sha256sum "$dir/module.prop" 2>/dev/null | awk '{print $1}')"
+    local disabled=0
+    [ -f "$dir/disable" ] && disabled=1
+
+    echo "$id	$vc	$hash	$disabled" >> "$tmp"
+  done
+
+  mv -f "$tmp" "$out"
+  sync
+}
 
 build_module_restore_queue() {
   local queue="$MODDIR/state/module_restore.queue"
@@ -27,7 +49,7 @@ build_module_restore_queue() {
 
     local priority="P2"
 
-    if [ -f "$legacy_good" ] && grep -qx "$id" "$legacy_good"; then
+    if [ -f "$legacy_good" ] && grep -Fxq "$id" "$legacy_good"; then
       priority="P0"
     elif is_whitelisted "$id"; then
       priority="P1"

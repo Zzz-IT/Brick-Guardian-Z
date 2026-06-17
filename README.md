@@ -1,82 +1,49 @@
-# Brick Guardian (自动防砖守护)
+# KSU Safe Guardian (安全守护)
 
-[![GitHub release](https://img.shields.io/github/release/kirklin/magisk-brick-guardian.svg)](https://github.com/kirklin/magisk-brick-guardian/releases)
-[![GitHub license](https://img.shields.io/github/license/kirklin/magisk-brick-guardian.svg)](https://github.com/kirklin/magisk-brick-guardian/blob/main/LICENSE)
-
-一个 Root 模块，用于防止您的设备因模块导致的启动问题而变砖。支持主流 Root 管理器。
+一个无感、自动化、优先支持 KernelSU 的防砖模块，并在遇到启动异常（Bootloop）时自动进行精细化救砖和模块禁用。本模块同时内置了对旧版 `magisk-brick-guardian` 遗留问题的自动迁移与修复能力。
 
 ## 特性
 
-- 🛡️ 自动检测并防止模块导致的系统无法启动
-- 📝 支持智能白名单机制
-- 🔄 OTA升级保护
-- 🖥️ 模块状态查看
-- 🔔 在线更新支持
-- ⚡ 快速恢复：当检测到启动异常时，系统将自动进行修复
-- 💪 稳定可靠：经过严格测试，确保您的设备安全
+- 🛡️ **早期防卡死机制**：基于 `boot_id` 进行早期计数，即使卡死在极为早期的阶段也能被成功统计并处理。
+- 🎯 **精细化嫌疑识别**：每次健康启动都会生成所有模块的快照（包括版本、状态等）。当发生启动异常时，模块优先针对**新安装、新更新、新启用**的模块进行“精准禁用”，最大程度保护用户其他无辜模块不被误伤。
+- 🔄 **渐进式恢复测试**：如果接管了旧版的被禁用模块或由于大范围禁用而波及了安全模块，本守护会在后续的每次健康重启中，**每次只恢复一个模块**进行“测试”。若系统再次卡死，将自动回滚。
+- ☁️ **无在线更新**：彻底剥离任何形式的“在线更新检查”逻辑，保证绝对纯净与透明，不留后门。
+- 🧹 **无 System 挂载**：默认包含 `skip_mount` 标识，完全无系统修改，甚至自身的文件操作也高度克制。
+- 💼 **旧版无缝迁移**：安装即自动接管旧版 `magisk-brick-guardian`，安全接管原有的白名单与禁用状态，隔离旧版的风险文件（如被挟持的 `modules_update.bak`）。
 
 ## 兼容性
 
-本模块支持以下 Root 管理器：
+本模块为 **KernelSU-first** 设计，但也兼容其他主流的 Root 管理器：
 
-| Root 管理器 | 最低版本 | 状态 |
-|------------|---------|------|
-| [Magisk](https://github.com/topjohnwu/Magisk) | v20.4+ | ✅ 完全支持 |
-| [KernelSU](https://github.com/tiann/KernelSU) | v0.6.0+ | ✅ 完全支持 |
-| [KSU Next](https://github.com/KernelSU-Next/KernelSU-Next) | v1.0.0+ | ✅ 完全支持 |
-| [APatch](https://github.com/bmax121/APatch) | v10763+ | ✅ 完全支持 |
+| Root 管理器 | 状态 |
+|------------|------|
+| [KernelSU](https://github.com/tiann/KernelSU) | ✅ 完美支持 (支持专属 `boot-completed.sh`) |
+| [Magisk](https://github.com/topjohnwu/Magisk) | ✅ 完全支持 |
+| [KSU Next](https://github.com/KernelSU-Next/KernelSU-Next) | ✅ 完全支持 |
+| [APatch](https://github.com/bmax121/APatch) | ✅ 完全支持 |
 
 ## 安装要求
 
 - Android 10.0+
 
-## 安装方法
-
-1. 在对应的 Root 管理器中下载并安装此模块
-2. 重启设备
-3. 首次启动后请等待1.5分钟，以确认模块正常运行
-
 ## 使用说明
 
-- 模块安装后会自动运行，无需额外配置
-- 如需自定义白名单，请编辑 `/data/adb/modules/magisk-brick-guardian/白名单.conf` 文件
-- 如遇到无法开机的情况，系统将自动进行修复
-- 模块状态查看：在管理器中点击模块的 action 按钮可查看模块状态信息
-- 在线更新：在管理器中可直接检查和安装模块更新
+1. 下载最新的 ZIP 包，在对应的 Root 管理器中刷入。
+2. 重启设备。
+3. **完全无感**：模块在后台自动守护，无需用户主动执行任何操作。
+4. **状态查询**：在管理器中点击本模块的“Action”按钮，可查看当前的守护状态、健康情况、恢复队列进度等详细信息。
+5. **白名单**：如果你需要确保某个模块在发生大范围禁用时**绝对不被禁用**，可将其模块文件夹名添加到 `/data/adb/modules/ksu-safe-guardian/config/whitelist.conf`（支持旧版白名单的自动导入）。
 
-### 模块状态信息
+## 原理说明
 
-点击 action 按钮后，您可以查看以下信息：
-
-1. 模块基本信息（名称、版本、作者）
-2. 模块运行状态
-3. 救砖脚本状态
-4. 白名单状态
-5. 救砖统计和启动次数
-6. Root 管理器信息
-7. 系统信息
-8. 最近的日志记录
-
-## 注意事项
-
-- ⚠️ 安全警告：请仅从本项目的 [GitHub Releases](https://github.com/kirklin/magisk-brick-guardian/releases) 页面下载模块，以防止下载到被恶意篡改的版本
-- 首次安装后请耐心等待1.5分钟，让模块完成初始化
-- 建议在安装其他模块前先安装本模块，以获得最佳保护
-- 如果您修改了白名单配置，请重启设备以使更改生效
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
+- **健康判断**：在系统启动完成后，模块会连续多次（默认 3 次）对 `sys.boot_completed` 和 `system_server` 进行状态采样，确保系统达到真正的“健康稳定”。
+- **原子操作**：所有状态文件（计数器、当前被测试模块等）均采用原子写入和加锁机制，杜绝文件损坏引起的失误。
+- **三重救砖策略**：
+  1. **测试项回滚**：如果模块正在尝试恢复一个被禁用的旧模块，发生卡死时，模块会精准将其再次禁用。
+  2. **嫌疑模块禁用**：通过对比健康快照，精确抓出“刚变动”的嫌疑模块进行封锁。
+  3. **大范围禁用**：当连续失败达到阈值（默认 5 次），将不分青红皂白禁用所有非白名单模块，以确保手机最终能够开机。
+  4. **自我熔断**：当尝试次数达到极限，本守护模块将自行禁用，防止其逻辑本身成为无限重启的根源。
 
 ## 许可证
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件
-
-## 作者
-
-[Kirk Lin](https://github.com/kirklin)
-
-## 致谢
-
-感谢所有为此项目做出贡献的开发者！ 
-# Brick-Guardian-Z
+本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
