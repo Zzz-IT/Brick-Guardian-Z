@@ -70,10 +70,11 @@ handle_healthy_boot() {
   if [ "$need_first_run" = "1" ]; then
     log_info "正在执行首次擦屁股清理任务..."
     . "$MODDIR/scripts/first_run_repair.sh"
-    run_first_run_repair
-    
-    acquire_lock
-    _clear_state_unlocked "first_run_repair_pending"
+    if run_first_run_repair; then
+      _clear_state_unlocked "first_run_repair_pending"
+    else
+      log_warn "首次擦屁股操作部分失败，保留 pending 状态待下次启动重试。"
+    fi
     _clear_state_unlocked "first_run_repair_running"
     release_lock
   fi
@@ -82,11 +83,6 @@ handle_healthy_boot() {
   acquire_lock
 
   _mark_testing_success_unlocked
-
-  local curr_ver="$(getprop ro.system.build.version.incremental)"
-  if [ -n "$curr_ver" ]; then
-    _set_state_unlocked "last_system_version" "$curr_ver"
-  fi
 
   # 保存当前健康的模块快照
   if [ -f "$MODDIR/scripts/restore_queue.sh" ]; then

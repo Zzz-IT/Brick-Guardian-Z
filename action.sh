@@ -9,9 +9,9 @@ echo ""
 echo "状态 (Status):"
 
 # Root 管理器检测
-if [ -d "/data/adb/ksu" ]; then
+if [ -d "$ADB_ROOT/ksu" ]; then
   echo "- Root 管理器: KernelSU"
-elif [ -d "/data/adb/ap" ]; then
+elif [ -d "$ADB_ROOT/ap" ]; then
   echo "- Root 管理器: APatch"
 else
   echo "- Root 管理器: Magisk"
@@ -23,7 +23,7 @@ else
   echo "- 首次开机清理状态: 已完成 (completed)"
 fi
 
-if [ -f "/data/adb/modules/magisk-brick-guardian/disable" ]; then
+if [ -f "$ADB_ROOT/modules/magisk-brick-guardian/disable" ]; then
   echo "- 旧版遗留模块: 已禁用 (disabled)"
 else
   echo "- 旧版遗留模块: 未找到或正处于激活状态"
@@ -86,4 +86,25 @@ if [ -f "$MODDIR/state/last_action" ]; then
   cat "$MODDIR/state/last_action"
 else
   echo "最后执行的动作 (Last action): 无"
+fi
+
+echo ""
+echo "白名单状态 (Whitelist):"
+whitelist_conf="$MODDIR/config/whitelist.conf"
+if [ -f "$whitelist_conf" ]; then
+  whitelist_count=$(grep -v '^#' "$whitelist_conf" | grep -v '^$' | wc -l)
+  echo "- 路径: $whitelist_conf"
+  echo "- 数量: $whitelist_count 个"
+else
+  echo "- 数量: 0 (未找到配置)"
+fi
+
+echo ""
+echo "=============================="
+echo "    最近运行日志 (Last Logs)  "
+echo "=============================="
+if [ -f "$MODDIR/logs/guardian.log" ]; then
+  tail -n 20 "$MODDIR/logs/guardian.log"
+else
+  echo "暂无日志"
 fi

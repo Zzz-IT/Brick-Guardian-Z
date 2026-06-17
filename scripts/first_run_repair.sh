@@ -35,14 +35,15 @@ run_first_run_repair() {
 
   # 隔离被挟持的模块更新备份目录
   if [ "$(get_config AUTO_QUARANTINE_MODULES_UPDATE_BAK 1)" = "1" ]; then
-    repair_modules_update_bak
+    repair_modules_update_bak || return 1
   fi
 
   # 为系统中已被禁用的模块或脚本生成恢复队列
   . "$MODDIR/scripts/restore_queue.sh"
-  build_module_restore_queue
-  build_script_restore_queue
+  build_module_restore_queue || return 1
+  build_script_restore_queue || return 1
 
   _set_state_unlocked "last_action" "首次安装系统清理与修复已完成。"
   log_info "首次安装系统清理与修复已完成。"
+  return 0
 }
