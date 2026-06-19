@@ -8,19 +8,19 @@ if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 fi
 
-LOG_MAX_BYTES="${LOG_MAX_BYTES:-262144}"
-LOG_MAX_BACKUPS="${LOG_MAX_BACKUPS:-3}"
+LOG_MAX_BYTES="${LOG_MAX_BYTES:-32768}"
+LOG_MAX_BACKUPS="${LOG_MAX_BACKUPS:-1}"
 
 rotate_log() {
   local log_file="$MODDIR/logs/guardian.log"
   local size
 
   case "$LOG_MAX_BYTES" in
-    ''|*[!0-9]*) LOG_MAX_BYTES=262144 ;;
+    ''|*[!0-9]*) LOG_MAX_BYTES=32768 ;;
   esac
 
   case "$LOG_MAX_BACKUPS" in
-    ''|*[!0-9]*) LOG_MAX_BACKUPS=3 ;;
+    ''|*[!0-9]*) LOG_MAX_BACKUPS=1 ;;
   esac
 
   [ "$LOG_MAX_BACKUPS" -ge 1 ] || LOG_MAX_BACKUPS=1
@@ -131,4 +131,39 @@ append_unique_line() {
     return 0
   fi
   echo "$value" >> "$file"
+}
+
+is_valid_script_relpath() {
+  local path="$1"
+  echo "$path" | grep -Eq '^(service\.d|post-fs-data\.d|post-mount\.d|boot-completed\.d)/[a-zA-Z0-9._-]+$'
+}
+
+is_script_whitelisted() {
+  local relpath="$1"
+  local file="$MODDIR/config/script_whitelist.conf"
+
+  is_valid_script_relpath "$relpath" || return 1
+  [ -f "$file" ] || return 1
+
+  awk -v relpath="$relpath" '
+    {
+      line=$0
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", line)
+    }
+    line == "" {next}
+    line ~ /^#/ {next}
+    line == relpath {found=1}
+    END {exit found ? 0 : 1}
+  ' "$file"
+}
+
+is_executable() {
+  local fpath="$1"
+  if [ -n "${TEST_DIR:-}" ]; then
+    local rel="${fpath#$ADB_ROOT/}"
+    local safe_rel="$(echo "$rel" | tr '/' '_')"
+    [ -f "$MODDIR/state/.mock_exec/$safe_rel" ] && return 0
+    return 1
+  fi
+  [ -x "$fpath" ]
 }

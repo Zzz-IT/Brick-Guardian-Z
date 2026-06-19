@@ -3,12 +3,17 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-if ! command -v zip >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
+has_zipper=0
+if command -v zip >/dev/null 2>&1 || command -v powershell.exe >/dev/null 2>&1; then
+  has_zipper=1
+fi
+
+if [ "$has_zipper" -eq 0 ] || ! command -v unzip >/dev/null 2>&1; then
   if [ "${GITHUB_ACTIONS:-}" = "true" ]; then
-    echo "FAIL: zip or unzip not found in CI environment, required for release validation"
+    echo "FAIL: zip/powershell or unzip not found in CI environment, required for release validation"
     exit 1
   else
-    echo "SKIP: zip or unzip not found in local environment"
+    echo "SKIP: zip/powershell or unzip not found in local environment"
     exit 2
   fi
 fi
@@ -28,11 +33,15 @@ required=(
   uninstall.sh
   config/default.conf
   config/whitelist.conf
+  config/script_whitelist.conf
   scripts/lib.sh
   scripts/state.sh
   scripts/healthcheck.sh
   scripts/recovery.sh
   scripts/snapshot.sh
+  scripts/script_guard.sh
+  scripts/boot_mode.sh
+  scripts/zygote_monitor.sh
 )
 
 for f in "${required[@]}"; do

@@ -1,5 +1,13 @@
 # 更新日志
 
+## v1.2.0 (2026-06-19)
+
+- **早期救砖流程 (Early Rescue)**：对于普通启动异常（`boot_attempts >= 2`），在 `post-fs-data` 阶段直接触发精准/大范围禁用并重启，响应速度提升至数秒内。
+- **Zygote 不稳定早判**：`service.sh` 增加 Zygote 进程 PID 监控，60 秒内重启 >= 4 次且 `attempts >= 2` 时提前触发救砖，避免等待超时。
+- **系统 OTA 启动超时延长**：识别到系统 incremental 版本变更时，动态延长超时时间（最高 900 秒），并自动跳过早期救砖，确保 OTA 升级后的首次启动有充足时间。
+- **Shell 脚本快照保护**：全局脚本目录（`service.d`, `post-fs-data.d`, `post-mount.d`, `boot-completed.d`）纳入健康快照，发生异常时对嫌疑脚本或非白名单脚本执行 `chmod 0644` 降权禁用，支持脚本白名单。
+- **构建脚本适配 Windows**：`build_zip.sh` 增加了对 Windows `powershell.exe` `Compress-Archive` 的兼容，当本地未安装原生 `zip` 命令时仍可正常打包。
+
 ## v1.1.0 (2026-06-18)
 
 - **日志自动轮转与备份大小限制**：默认单个日志 256 KB，最多保留 3 个备份，整体存储占用限制在 1 MB 以内。

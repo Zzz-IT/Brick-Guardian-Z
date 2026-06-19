@@ -1,6 +1,6 @@
 id=brick-guardian-z
 name=Brick Guardian Z
-version=v1.1.0
-versionCode=10100
+version=v1.2.0
+versionCode=10200
 author=Zzz
 description=一个简洁、保守、自动化的防砖与救砖守护模块。

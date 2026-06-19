@@ -46,3 +46,44 @@ save_good_snapshot() {
 
   sync
 }
+
+save_good_script_snapshot() {
+  local out="$MODDIR/state/good_scripts.tsv"
+  local tmp="$out.tmp.$$"
+
+  : > "$tmp"
+
+  local dirs="service.d post-fs-data.d post-mount.d boot-completed.d"
+  for sub in $dirs; do
+    local dpath="$ADB_ROOT/$sub"
+    [ -d "$dpath" ] || continue
+
+    for fpath in "$dpath"/*; do
+      [ -f "$fpath" ] || continue
+      
+      local fname="${fpath##*/}"
+      local relpath="$sub/$fname"
+      
+      is_valid_script_relpath "$relpath" || continue
+      
+      local hash
+      hash="$(sha256sum "$fpath" 2>/dev/null | awk '{print $1}')"
+      
+      local exec=0
+      is_executable "$fpath" && exec=1
+      
+      printf '%s\t%s\t%s\n' "$relpath" "$hash" "$exec" >> "$tmp"
+    done
+  done
+
+  mv -f "$tmp" "$out"
+
+  local count
+  count="$(wc -l < "$out" 2>/dev/null || echo 0)"
+  case "$count" in
+    ''|*[!0-9]*) count=0 ;;
+  esac
+  printf '%s\n' "$count" > "$MODDIR/state/good_scripts_count"
+
+  sync
+}

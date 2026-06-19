@@ -4,7 +4,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-command -v zip >/dev/null 2>&1 || { echo "FAIL: zip not found"; exit 1; }
+has_zipper=0
+if command -v zip >/dev/null 2>&1 || command -v python >/dev/null 2>&1 || command -v python3 >/dev/null 2>&1 || command -v py >/dev/null 2>&1 || command -v powershell.exe >/dev/null 2>&1; then
+  has_zipper=1
+fi
+if [ "$has_zipper" -eq 0 ]; then
+  echo "FAIL: No zipper found (zip, python, or powershell)"
+  exit 1
+fi
 command -v unzip >/dev/null 2>&1 || { echo "FAIL: unzip not found"; exit 1; }
 
 ALLOW_TEST_SKIP=0 bash tests/run_all.sh

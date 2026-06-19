@@ -33,7 +33,11 @@ if [ -f "$MODDIR/state/good_modules.tsv" ]; then
   case "$snap_count" in
     ''|*[!0-9]*) snap_count="$(wc -l < "$MODDIR/state/good_modules.tsv" 2>/dev/null || echo 0)" ;;
   esac
-  echo "- 健康快照: 存在 (${snap_count:-0} 个模块)"
+  script_snap_count="$(cat "$MODDIR/state/good_scripts_count" 2>/dev/null)"
+  case "$script_snap_count" in
+    ''|*[!0-9]*) script_snap_count="$(wc -l < "$MODDIR/state/good_scripts.tsv" 2>/dev/null || echo 0)" ;;
+  esac
+  echo "- 健康快照: 存在 (${snap_count:-0} 个模块 / ${script_snap_count:-0} 个脚本)"
 elif [ "$(cat "$MODDIR/state/last_health_status" 2>/dev/null)" = "healthy" ]; then
   echo "- 健康快照: 异常"
 else
@@ -103,6 +107,33 @@ if [ "$printed" = "0" ]; then
 fi
 
 rm -f "$tmp_disabled"
+
+echo ""
+echo "脚本保护:"
+echo "- 最近异常禁用脚本:"
+tmp_disabled_scripts="$MODDIR/state/.action_disabled_scripts.tmp.$$"
+: > "$tmp_disabled_scripts"
+
+if [ -f "$MODDIR/state/guardian_disabled_scripts.list" ]; then
+  awk 'NF && !seen[$0]++ {print $0}' "$MODDIR/state/guardian_disabled_scripts.list" 2>/dev/null \
+    | tail -n 10 > "$tmp_disabled_scripts"
+fi
+
+printed_script=0
+if [ -s "$tmp_disabled_scripts" ]; then
+  while IFS= read -r relpath; do
+    if is_valid_script_relpath "$relpath"; then
+      echo "   $relpath"
+      printed_script=1
+    fi
+  done < "$tmp_disabled_scripts"
+fi
+
+if [ "$printed_script" = "0" ]; then
+  echo "   无"
+fi
+
+rm -f "$tmp_disabled_scripts"
 
 echo ""
 echo "最近日志:"
