@@ -2,6 +2,7 @@
 # Brick Guardian Z action.sh
 
 MODDIR=${0%/*}
+[ "$MODDIR" = "$0" ] && MODDIR="."
 . "$MODDIR/scripts/lib.sh"
 
 root_manager="Magisk"
@@ -60,15 +61,14 @@ else
   echo "- 最后动作: 无"
 fi
 
-echo ""
-echo "模块保护:"
-
 if [ -f "$MODDIR/state/rescue_count" ]; then
   echo "- 已救砖次数: $(cat "$MODDIR/state/rescue_count" 2>/dev/null)"
 else
   echo "- 已救砖次数: 0"
 fi
 
+echo ""
+echo "模块保护:"
 echo "- 白名单模块:"
 whitelist_conf="$MODDIR/config/whitelist.conf"
 whitelist_printed=0
@@ -114,6 +114,18 @@ rm -f "$tmp_disabled"
 
 echo ""
 echo "脚本保护:"
+echo "- 白名单脚本:"
+script_whitelist_conf="$MODDIR/config/script_whitelist.conf"
+if [ -f "$script_whitelist_conf" ]; then
+  while IFS= read -r line; do
+    line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+    [ -n "$line" ] || continue
+    case "$line" in \#*) continue ;; esac
+    if is_valid_script_relpath "$line"; then
+      echo "   $line"
+    fi
+  done < "$script_whitelist_conf"
+fi
 echo "- 最近异常禁用脚本:"
 tmp_disabled_scripts="$MODDIR/state/.action_disabled_scripts.tmp.$$"
 : > "$tmp_disabled_scripts"

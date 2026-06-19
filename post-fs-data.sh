@@ -16,6 +16,7 @@ fi
 # 无论任何启动条件，首先记录早期启动尝试
 boot_id_file="${MOCK_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}"
 boot_id="$(cat "$boot_id_file" 2>/dev/null)"
+[ -n "$boot_id" ] && printf '1\n' > "$MODDIR/state/post_fs_seen_$boot_id"
 last_seen="$(cat "$MODDIR/state/last_seen_boot_id" 2>/dev/null)"
 
 if [ -n "$boot_id" ] && [ "$boot_id" != "$last_seen" ]; then
@@ -55,9 +56,7 @@ if [ "$(get_config ENABLE_EARLY_RESCUE 1)" = "1" ]; then
         log_info "post-fs-data: 首次基线启动，跳过 early rescue。"
         ;;
       ota_like)
-        if [ "$(get_config SKIP_EARLY_RESCUE_ON_OTA 1)" = "1" ]; then
-          log_info "post-fs-data: OTA-like 启动，跳过 early rescue。"
-        fi
+        log_info "post-fs-data: OTA-like 启动，固定跳过 early rescue。"
         ;;
       normal)
         targeted_threshold="$(get_config TARGETED_RECOVERY_THRESHOLD 2)"

@@ -108,6 +108,17 @@ get_suspect_modules() {
   done
 }
 
+mark_rescue_action_taken() {
+  local boot_id="$1"
+
+  [ -n "$boot_id" ] || return 0
+
+  _set_state_unlocked "action_taken_$boot_id" "1"
+  _set_state_unlocked "decision_$boot_id" "bootloop"
+  _set_state_unlocked "last_health_status" "bootloop"
+  _increment_state_unlocked "rescue_count" >/dev/null
+}
+
 mark_bootloop_decision() {
   local boot_id="$1"
 
@@ -120,7 +131,6 @@ mark_bootloop_decision() {
 
   _set_state_unlocked "decision_$boot_id" "bootloop"
   _set_state_unlocked "last_health_status" "bootloop"
-  _increment_state_unlocked "rescue_count" >/dev/null
 
   return 0
 }
@@ -133,9 +143,17 @@ try_rescue_actions() {
   local broad_threshold
   local self_disable_threshold
 
-  targeted_threshold="$(get_config TARGETED_RECOVERY_THRESHOLD 2)"
-  broad_threshold="$(get_config BROAD_RECOVERY_THRESHOLD 4)"
-  self_disable_threshold="$(get_config SELF_DISABLE_THRESHOLD 5)"
+  targeted_threshold="$(normalize_positive_int "$(get_config TARGETED_RECOVERY_THRESHOLD 2)" 2)"
+  broad_threshold="$(normalize_positive_int "$(get_config BROAD_RECOVERY_THRESHOLD 4)" 4)"
+  self_disable_threshold="$(normalize_positive_int "$(get_config SELF_DISABLE_THRESHOLD 5)" 5)"
+
+  if [ "$broad_threshold" -le "$targeted_threshold" ]; then
+    broad_threshold=$((targeted_threshold + 2))
+  fi
+
+  if [ "$self_disable_threshold" -le "$broad_threshold" ]; then
+    self_disable_threshold=$((broad_threshold + 1))
+  fi
 
   local boot_id_file="${MOCK_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}"
   local boot_id
@@ -144,21 +162,16 @@ try_rescue_actions() {
   # 1. 自我禁用
   if [ "$attempts" -ge "$self_disable_threshold" ] && [ "$(get_config ALLOW_SELF_DISABLE 1)" = "1" ]; then
     touch "$MODDIR/disable"
-    log_error "达到自我禁用阈值，Brick Guardian Z 已自我禁用。"
+    log_error "[$mode] 达到自我禁用阈值，Brick Guardian Z 已自我禁用。"
     _set_state_unlocked "last_action" "由于多次异常启动，Brick Guardian Z 已自我禁用。"
-    if [ -n "$boot_id" ]; then
-      _set_state_unlocked "action_taken_$boot_id" "1"
-      _set_state_unlocked "decision_$boot_id" "bootloop"
-    fi
-    _set_state_unlocked "last_health_status" "bootloop"
-    _increment_state_unlocked "rescue_count" >/dev/null
+    mark_rescue_action_taken "$boot_id"
     apply_recovery_and_reboot
     return 0
   fi
 
   # 2. 大范围禁用
   if [ "$attempts" -ge "$broad_threshold" ] && [ "$(get_config ALLOW_BROAD_DISABLE 1)" = "1" ]; then
-    log_error "达到大范围禁用阈值，准备禁用非白名单模块与脚本..."
+    log_error "[$mode] 达到大范围禁用阈值，准备禁用非白名单模块与脚本..."
     local disabled_any_module=0
     local disabled_any_script=0
 
@@ -201,24 +214,19 @@ try_rescue_actions() {
         act_msg="已执行大范围禁用脚本。"
       fi
       _set_state_unlocked "last_action" "$act_msg"
-      if [ -n "$boot_id" ]; then
-        _set_state_unlocked "action_taken_$boot_id" "1"
-        _set_state_unlocked "decision_$boot_id" "bootloop"
-      fi
-      _set_state_unlocked "last_health_status" "bootloop"
-      _increment_state_unlocked "rescue_count" >/dev/null
+      mark_rescue_action_taken "$boot_id"
       apply_recovery_and_reboot
       return 0
     else
       _set_state_unlocked "last_action" "达到大范围禁用阈值，但没有可禁用模块/脚本，已跳过重启。"
-      log_warn "达到大范围禁用阈值，但没有可禁用模块/脚本，跳过重启。"
+      log_warn "[$mode] 达到大范围禁用阈值，但没有可禁用模块/脚本，跳过重启。"
       return 1
     fi
   fi
 
   # 3. 精准禁用
   if [ "$attempts" -ge "$targeted_threshold" ]; then
-    log_error "达到精准禁用阈值，正在识别并禁用嫌疑模块与脚本..."
+    log_error "[$mode] 达到精准禁用阈值，正在识别并禁用嫌疑模块与脚本..."
     local disabled_any_module=0
     local disabled_any_script=0
     local has_module_snap=0
@@ -264,12 +272,7 @@ try_rescue_actions() {
         act_msg="已禁用嫌疑脚本。"
       fi
       _set_state_unlocked "last_action" "$act_msg"
-      if [ -n "$boot_id" ]; then
-        _set_state_unlocked "action_taken_$boot_id" "1"
-        _set_state_unlocked "decision_$boot_id" "bootloop"
-      fi
-      _set_state_unlocked "last_health_status" "bootloop"
-      _increment_state_unlocked "rescue_count" >/dev/null
+      mark_rescue_action_taken "$boot_id"
       apply_recovery_and_reboot
       return 0
     else
@@ -277,10 +280,10 @@ try_rescue_actions() {
       [ -f "$MODDIR/state/good_scripts.tsv" ] && has_script_snap=1
       if [ "$has_module_snap" = "0" ] || [ "$has_script_snap" = "0" ]; then
         _set_state_unlocked "last_action" "缺少健康快照，无法精准识别嫌疑模块/脚本。"
-        log_warn "缺少健康快照，无法精准识别嫌疑模块/脚本。"
+        log_warn "[$mode] 缺少健康快照，无法精准识别嫌疑模块/脚本。"
       else
         _set_state_unlocked "last_action" "已检查嫌疑模块与脚本，但没有可禁用项。"
-        log_warn "已检查嫌疑模块与脚本，但没有可禁用项。"
+        log_warn "[$mode] 已检查嫌疑模块与脚本，但没有可禁用项。"
       fi
       return 1
     fi

@@ -41,6 +41,10 @@ wait_healthy_or_zygote_unstable() {
   local stable_samples="${2:-3}"
   local sample_interval="${3:-5}"
   
+  timeout="$(normalize_positive_int "$timeout" 600)"
+  stable_samples="$(normalize_positive_int "$stable_samples" 3)"
+  sample_interval="$(normalize_positive_int "$sample_interval" 5)"
+
   local elapsed=0
   local stable=0
   local z_changes=0

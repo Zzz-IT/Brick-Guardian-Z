@@ -15,10 +15,13 @@ MODDIR=${0%/*}
   
   [ "$(get_config ENABLED 1)" = "1" ] || exit 0
 
+  boot_id="$(cat "${MOCK_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}" 2>/dev/null)"
+  [ -n "$boot_id" ] && _set_state_unlocked "service_seen_$boot_id" "1"
+
   # 获取有效超时时间与健康状态稳定样本参数
-  timeout="$(get_effective_boot_timeout)"
-  stable="$(get_config HEALTH_STABLE_SAMPLES 3)"
-  interval="$(get_config HEALTH_SAMPLE_INTERVAL_SEC 5)"
+  timeout="$(normalize_positive_int "$(get_effective_boot_timeout)" 180)"
+  stable="$(normalize_positive_int "$(get_config HEALTH_STABLE_SAMPLES 3)" 3)"
+  interval="$(normalize_positive_int "$(get_config HEALTH_SAMPLE_INTERVAL_SEC 5)" 5)"
 
   wait_healthy_or_zygote_unstable "$timeout" "$stable" "$interval"
   result="$?"

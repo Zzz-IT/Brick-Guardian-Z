@@ -1,91 +1,110 @@
-# Brick Guardian Z (安全守护)
+# Brick Guardian Z
 
-一个无感、自动化、优先支持 KernelSU 的防砖模块，并在遇到启动异常（Bootloop）时自动进行精细化救砖和模块禁用。本模块只维护自己的健康快照、异常启动计数、嫌疑模块禁用记录和白名单保护逻辑，不继承、不读取、不清理任何旧版状态。
+Brick Guardian Z 是一个为 Magisk, KernelSU 和 APatch 设计的无感、自动化防砖模块。它专注于提供高可靠性的系统守护，通过早期防卡死机制、Zygote 状态监控和双重快照对比（模块与全局脚本），在遇到启动异常（Bootloop）时自动进行精细化救砖和禁用，确保设备能够安全启动。
 
-## 特性
+## 核心功能
 
-- 🛡️ **早期防卡死机制**：基于 `boot_id` 记录异常启动次数。
-- 🎯 **健康快照对比**：健康启动后记录模块快照，异常启动时识别新安装、更新、修改或刚启用的嫌疑模块。
-- 🚫 **自动止损禁用**：优先禁用嫌疑模块；仍无法恢复时禁用所有非白名单模块；最终自我禁用。
-- 🧾 **自动循环日志**：日志会自动轮转并限制存储占用，无需用户手动清理。
-- ☁️ **无在线更新**：不联网、不下载、不执行远程代码。
-- 📝 **配置文件书写规范：**
-> 配置文件支持 `KEY=VALUE` 或 `KEY = VALUE`（带有空格）的写法。系统会自动过滤键值两端的空格。
-> 🚨 **注意**：配置值**不支持**行尾（Inline）注释，请将注释单独写在新的一行。例如：
-> ```properties
-> # 正确的写法
-> BOOT_TIMEOUT_SEC=600
-> 
-> # 错误的写法（会导致值被识别为 '600 # 超时时间'）
-> BOOT_TIMEOUT_SEC=600 # 超时时间
-> ```
-- 🧹 **无 System 挂载**：默认包含 `skip_mount` 标识，完全无系统修改，甚至自身的文件操作也高度克制。
+### 1. 启动模式判定与动态超时
 
-## 设计边界
+- 普通启动：采用标准的 `BOOT_TIMEOUT_SEC`（默认 120 秒）进行监控。
+- 初次基线启动（first_baseline）：当健康快照未生成或被手动清空时触发，此模式下不执行任何救砖动作，仅用于安全建立初始健康快照。
+- OTA-like 启动：当检测到系统更新或重建缓存时（通过监测 `/data/system/packages.xml` 的最后修改时间），自动延长超时到 `OTA_BOOT_TIMEOUT_SEC`（默认 600 秒），并无条件跳过 early rescue（早期救砖），避免误判。
 
-Brick Guardian Z 不检测 OTA、A/B slot、Virtual A/B、HyperOS、MIUI、系统 fingerprint 或 ROM 专属属性。
+### 2. 双重检测机制
 
-所有慢启动场景统一由以下机制处理：
+- Zygote 状态监控：启动后台守护进程，监测 Zygote 进程的崩溃频率。当 Zygote 连续崩溃次数达到阈值，判定系统处于严重不稳定状态，立即使 service 监控提早退出并触发救砖。
+- 早期救砖（Early Rescue）：在 `post-fs-data` 阶段检测到启动计数异常时，在满足普通启动前提下，直接触发救砖尝试，在 `system_server` 拉起前中断崩溃链。
 
-- `BOOT_TIMEOUT_SEC`
-- 连续失败次数
-- 精准嫌疑模块识别
-- 白名单保护
-- 兜底禁用非白名单模块
+### 3. 双重快照与防护策略
 
-这样做是为了降低 ROM 差异和系统属性不稳定带来的误判。
+- 模块防护：对比健康启动时记录的模块快照，识别出新增、更新或最近启用的嫌疑模块，并在发生异常时进行精准禁用。在大范围禁用时，仅禁用非 [whitelist.conf](file:///d:/GOLANG/brick-guardian-z/config/whitelist.conf) 白名单内的模块。
+- 脚本防护：对比健康启动时记录的全局脚本快照，监控 `service.d` 和 `post-fs-data.d` 下的全局脚本（跳过 symlink 链接）。异常时对嫌疑脚本执行 `chmod 0644` 禁用。在大范围禁用时，仅禁用非 [script_whitelist.conf](file:///d:/GOLANG/brick-guardian-z/config/script_whitelist.conf) 白名单内的脚本。
 
-## 不会做的事
+### 4. 渐进式分级救砖状态机
 
-本模块不会：
+只有当实际执行了禁用等救砖动作时才会递增 `rescue_count` 计数，以此作为状态机的驱动判定：
 
-- 自动恢复任何已被禁用的模块
-- 联网下载或执行任何代码
-- 提供在线更新检查
-- 修改 system/vendor/product 分区
-- 接管 `/data/adb/modules_update`
-- 删除 `package-restrictions.xml`
-- 继承旧版白名单
-- 继承旧版健康快照
-- 自动恢复早期全局脚本目录中的脚本
-- 对全局脚本目录执行批量 `chmod 000`
-- 扫描处理旧版遗留的 `modules_update.bak` 目录
+- 精准禁用（`rescue_count` <= `TARGETED_DISABLE_THRESHOLD`）：仅禁用嫌疑模块 and 嫌疑脚本。
+- 大范围禁用（`rescue_count` = `BROAD_DISABLE_THRESHOLD`）：禁用所有非白名单的模块和非白名单的脚本。
+- 自我禁用（`rescue_count` = `SELF_DISABLE_THRESHOLD`）：当尝试多次仍失败，本模块自行禁用以防止守护逻辑本身成为无限重启的源头。
+
+### 5. 日志与空间管理
+
+- 自动清理：当系统正常启动且无任何异常时，将在下次启动时自动清空历史日志，只保留本次日志，避免日志无限膨胀。
+- 日志收缩：限制日志文件的最大大小，超出 `LOG_MAX_BYTES`（默认 64KB）时自动截断。
 
 ## 兼容性
 
-本模块为 **KernelSU-first** 设计，但也兼容其他主流的 Root 管理器：
+本模块为 KernelSU 优先设计，但同样兼容 Magisk 和 APatch。
 
-| Root 管理器 | 状态 |
-|------------|------|
-| [KernelSU](https://github.com/tiann/KernelSU) | 主要支持目标 |
-| [Magisk](https://github.com/topjohnwu/Magisk) | 兼容基础模块生命周期 |
-| [KSU Next](https://github.com/KernelSU-Next/KernelSU-Next) | 兼容基础模块生命周期 |
-| [APatch](https://github.com/bmax121/APatch) | 兼容基础模块生命周期 |
+- KernelSU : 主要设计与推荐运行环境。
+- Magisk : 兼容标准的模块生命周期与 Action 触发。
+- APatch : 兼容标准的模块生命周期与 Action 触发。
 
-## 安装要求
+支持 Android 10 及以上系统。
 
-- Android 10.0+
+## 工程目录结构
 
-## 使用说明
+- [action.sh](file:///d:/GOLANG/brick-guardian-z/action.sh) : Action 脚本，用于在管理器中查看守护状态、快照与最近异常禁用记录
+- [boot-completed.sh](file:///d:/GOLANG/brick-guardian-z/boot-completed.sh) : 启动完成后的 hook，用于清理临时状态
+- [customize.sh](file:///d:/GOLANG/brick-guardian-z/customize.sh) : 模块刷入安装脚本
+- [post-fs-data.sh](file:///d:/GOLANG/brick-guardian-z/post-fs-data.sh) : 早期 `post-fs-data` 阶段脚本，处理早期救砖与启动计数
+- [service.sh](file:///d:/GOLANG/brick-guardian-z/service.sh) : `late_start_service` 阶段脚本，拉起 Zygote 监视器并处理超时检测
+- [uninstall.sh](file:///d:/GOLANG/brick-guardian-z/uninstall.sh) : 模块卸载脚本
+- [config/default.conf](file:///d:/GOLANG/brick-guardian-z/config/default.conf) : 核心参数配置（包含各超时时间、救砖阈值等）
+- [config/restore-policy.conf](file:///d:/GOLANG/brick-guardian-z/config/restore-policy.conf) : 恢复策略配置
+- [config/script_whitelist.conf](file:///d:/GOLANG/brick-guardian-z/config/script_whitelist.conf) : 脚本白名单，每行一个相对路径
+- [config/whitelist.conf](file:///d:/GOLANG/brick-guardian-z/config/whitelist.conf) : 模块白名单，每行一个模块 ID
+- [scripts/lib.sh](file:///d:/GOLANG/brick-guardian-z/scripts/lib.sh) : 通用逻辑、文件锁与配置校验等工具函数
+- [scripts/boot_mode.sh](file:///d:/GOLANG/brick-guardian-z/scripts/boot_mode.sh) : 启动模式判定与有效超时时间计算
+- [scripts/zygote_monitor.sh](file:///d:/GOLANG/brick-guardian-z/scripts/zygote_monitor.sh) : Zygote 状态检测守护进程
+- [scripts/snapshot.sh](file:///d:/GOLANG/brick-guardian-z/scripts/snapshot.sh) : 模块与全局脚本的快照创建及对比管理
+- [scripts/recovery.sh](file:///d:/GOLANG/brick-guardian-z/scripts/recovery.sh) : 核心救砖逻辑、嫌疑识别与分级决策执行
+- [scripts/script_guard.sh](file:///d:/GOLANG/brick-guardian-z/scripts/script_guard.sh) : 全局脚本安全禁用及快照校验辅助逻辑
 
-1. 下载最新的 ZIP 包，在对应的 Root 管理器中刷入。
-2. 重启设备。
-3. **完全无感**：模块在后台自动守护，无需用户主动执行任何操作。
-4. **状态查询**：在管理器中点击本模块的“Action”按钮，可查看当前启动状态、健康快照、异常启动次数、白名单、最近异常禁用模块和日志。
-5. **白名单**：如果你需要确保某个模块在发生大范围禁用时**绝对不被禁用**，可将其模块文件夹名添加到 `/data/adb/modules/brick-guardian-z/config/whitelist.conf`。
-6. **模块恢复**：本模块只负责在异常启动时自动禁用可疑模块进行止损救砖，恢复被禁用的模块需要用户在开机后手动操作，本模块不会自动恢复任何模块。
-7. **日志清理**：日志会自动循环轮转，模块不会提供手动清除日志入口。
+## 配置说明
 
-## 原理说明
+配置文件支持 `KEY=VALUE` 或 `KEY = VALUE` 的写法（支持前导和尾随空格过滤）。
 
-- **独立的健康快照记录**：建立自己的 `good_modules.tsv` 快照记录，不依赖并彻底抛弃任何旧版状态（包括旧白名单）。
-- **完全透明的采样判定**：模块会连续多次（默认 3 次）对 `sys.boot_completed` 和 `system_server` 进行状态采样，确保系统达到真正的“健康稳定”。
-- **原子操作**：所有状态文件均采用原子写入和加锁机制，杜绝文件损坏引起的失误。
-- **自动止损救砖策略**：
-  1. **嫌疑模块禁用**：通过对比健康快照，精确抓出“刚变动”的嫌疑模块进行封锁。
-  2. **大范围禁用**：当连续失败达到阈值（默认 4 次），将禁用所有非白名单模块，以确保手机最终能够开机。
-  3. **自我熔断**：当尝试次数达到极限（默认 5 次），本守护模块将自行禁用，防止其逻辑本身成为无限重启的根源。
+### 核心配置参数
+
+- `BOOT_TIMEOUT_SEC` : 普通启动的最长等待超时时间（秒）。
+- `OTA_BOOT_TIMEOUT_SEC` : OTA-like 启动时的最长等待超时时间（秒）。
+- `TARGETED_DISABLE_THRESHOLD` : 精准禁用的最大尝试次数阈值。
+- `BROAD_DISABLE_THRESHOLD` : 触发大范围禁用的次数阈值。
+- `SELF_DISABLE_THRESHOLD` : 触发模块自我禁用的次数阈值。
+- `LOG_MAX_BYTES` : 日志文件大小上限（字节）。
+
+### 配置文件书写规范
+
+书写 `/data/adb/modules/brick-guardian-z/config/default.conf` 时，请务必遵守以下规范：
+
+- 支持等号两端包含空格。
+- 不支持行尾（Inline）注释，任何注释必须单独写在一行，否则注释符号和文本会被一并解析为配置值。
+
+正确书写示例：
+
+```properties
+# 核心参数配置
+BOOT_TIMEOUT_SEC=120
+
+# 支持等号两端包含空格
+OTA_BOOT_TIMEOUT_SEC = 600
+```
+
+错误书写示例：
+
+```properties
+# 错误：不支持行尾注释，这会导致参数值被错误解析为 "120 # 启动超时时间"
+BOOT_TIMEOUT_SEC=120 # 启动超时时间
+```
+
+## 安装与使用
+
+1. 下载 ZIP 包并在 Magisk、KernelSU 或 APatch 中刷入。
+2. 重启设备后即自动在后台开始守护，无需用户主动操作。
+3. 可随时在管理器中点击本模块的“Action”查看状态、白名单及最近一次的异常禁用记录。
 
 ## 许可证
 
-本项目采用 MIT 许可证 - 详见 [LICENSE](LICENSE) 文件。
+本项目采用 MIT 许可证。
