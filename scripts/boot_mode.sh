@@ -51,19 +51,19 @@ get_effective_boot_timeout() {
   case "$mode" in
     first_baseline)
       _set_state_unlocked "boot_mode" "first_baseline"
-      normalize_positive_int "$(get_config FIRST_BOOT_TIMEOUT_SEC 420)" 420
+      normalize_positive_int "$(get_config FIRST_BOOT_TIMEOUT_SEC 360)" 360
       ;;
     ota_like)
       _set_state_unlocked "boot_mode" "ota_like"
       if [ "$attempts" -le 1 ]; then
         normalize_positive_int "$(get_config OTA_BOOT_TIMEOUT_SEC 900)" 900
       else
-        normalize_positive_int "$(get_config OTA_RESCUE_TIMEOUT_SEC 420)" 420
+        normalize_positive_int "$(get_config OTA_RESCUE_TIMEOUT_SEC 360)" 360
       fi
       ;;
     *)
       _set_state_unlocked "boot_mode" "normal"
-      normalize_positive_int "$(get_config BOOT_TIMEOUT_SEC 180)" 180
+      normalize_positive_int "$(get_config BOOT_TIMEOUT_SEC 120)" 120
       ;;
   esac
 }

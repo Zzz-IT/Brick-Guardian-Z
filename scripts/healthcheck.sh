@@ -56,9 +56,9 @@ wait_healthy_or_zygote_unstable() {
     if should_monitor_zygote; then
       z_enabled=1
       local zygote_threshold
-      zygote_threshold="$(normalize_positive_int "$(get_config ZYGOTE_RESTART_THRESHOLD 4)" 4)"
+      zygote_threshold="$(normalize_positive_int "$(get_config ZYGOTE_RESTART_THRESHOLD 3)" 3)"
       local zygote_window
-      zygote_window="$(normalize_positive_int "$(get_config ZYGOTE_MONITOR_WINDOW_SEC 60)" 60)"
+      zygote_window="$(normalize_positive_int "$(get_config ZYGOTE_MONITOR_WINDOW_SEC 45)" 45)"
       old_z="$(get_zygote_pid_snapshot 2>/dev/null || true)"
     fi
   fi

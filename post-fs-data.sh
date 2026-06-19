@@ -59,7 +59,7 @@ if [ "$(get_config ENABLE_EARLY_RESCUE 1)" = "1" ]; then
         log_info "post-fs-data: OTA-like 启动，固定跳过 early rescue。"
         ;;
       normal)
-        targeted_threshold="$(get_config TARGETED_RECOVERY_THRESHOLD 2)"
+        targeted_threshold="$(normalize_positive_int "$(get_config TARGETED_RECOVERY_THRESHOLD 2)" 2)"
         if [ "$attempts" -ge "$targeted_threshold" ]; then
           if [ -f "$MODDIR/scripts/recovery.sh" ]; then
             . "$MODDIR/scripts/recovery.sh"
