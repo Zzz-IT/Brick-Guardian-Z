@@ -15,7 +15,7 @@ record_healthy_build() {
   _set_state_unlocked "last_healthy_build_incremental" "$build"
 }
 
-is_ota_like_boot() {
+get_boot_mode() {
   local current_build
   local last_healthy_build
 
@@ -23,54 +23,47 @@ is_ota_like_boot() {
   last_healthy_build="$(get_state "last_healthy_build_incremental")"
 
   if [ -z "$last_healthy_build" ]; then
-    return 1 # baseline boot is not an OTA boot
+    echo "first_baseline"
+    return 0
   fi
 
   if [ -n "$current_build" ] && [ "$current_build" != "$last_healthy_build" ]; then
-    return 0 # OTA-like boot detected
+    echo "ota_like"
+    return 0
   fi
 
-  return 1 # normal boot
+  echo "normal"
+}
+
+is_ota_like_boot() {
+  [ "$(get_boot_mode)" = "ota_like" ]
 }
 
 get_effective_boot_timeout() {
   local attempts
-  local default_timeout
-  local first_timeout
-  local ota_timeout
-  local ota_rescue_timeout
-  local current_build
-  local last_healthy_build
+  local mode
 
   attempts="$(get_state "boot_attempts")"
-  case "$attempts" in
-    ''|*[!0-9]*) attempts=1 ;;
+  attempts="$(normalize_positive_int "$attempts" 1)"
+
+  mode="$(get_boot_mode)"
+
+  case "$mode" in
+    first_baseline)
+      _set_state_unlocked "boot_mode" "first_baseline"
+      normalize_positive_int "$(get_config FIRST_BOOT_TIMEOUT_SEC 420)" 420
+      ;;
+    ota_like)
+      _set_state_unlocked "boot_mode" "ota_like"
+      if [ "$attempts" -le 1 ]; then
+        normalize_positive_int "$(get_config OTA_BOOT_TIMEOUT_SEC 900)" 900
+      else
+        normalize_positive_int "$(get_config OTA_RESCUE_TIMEOUT_SEC 420)" 420
+      fi
+      ;;
+    *)
+      _set_state_unlocked "boot_mode" "normal"
+      normalize_positive_int "$(get_config BOOT_TIMEOUT_SEC 180)" 180
+      ;;
   esac
-
-  default_timeout="$(get_config BOOT_TIMEOUT_SEC 180)"
-  first_timeout="$(get_config FIRST_BOOT_TIMEOUT_SEC 420)"
-  ota_timeout="$(get_config OTA_BOOT_TIMEOUT_SEC 900)"
-  ota_rescue_timeout="$(get_config OTA_RESCUE_TIMEOUT_SEC 420)"
-
-  current_build="$(getprop ro.system.build.version.incremental 2>/dev/null)"
-  last_healthy_build="$(get_state "last_healthy_build_incremental")"
-
-  if [ -z "$last_healthy_build" ]; then
-    _set_state_unlocked "boot_mode" "first_baseline"
-    echo "$first_timeout"
-    return 0
-  fi
-
-  if [ -n "$current_build" ] && [ "$current_build" != "$last_healthy_build" ]; then
-    _set_state_unlocked "boot_mode" "ota_like"
-    if [ "$attempts" -le 1 ]; then
-      echo "$ota_timeout"
-    else
-      echo "$ota_rescue_timeout"
-    fi
-    return 0
-  fi
-
-  _set_state_unlocked "boot_mode" "normal"
-  echo "$default_timeout"
 }

@@ -60,6 +60,7 @@ save_good_script_snapshot() {
 
     for fpath in "$dpath"/*; do
       [ -f "$fpath" ] || continue
+      [ -L "$fpath" ] && continue
       
       local fname="${fpath##*/}"
       local relpath="$sub/$fname"

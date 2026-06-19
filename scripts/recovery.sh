@@ -28,9 +28,16 @@ handle_healthy_boot() {
   boot_id="$(cat "$boot_id_file" 2>/dev/null)"
   decision="$(get_state "decision_$boot_id")"
 
-  if [ -n "$boot_id" ] && [ -n "$decision" ]; then
+  if [ -n "$boot_id" ] && [ "$decision" = "healthy" ]; then
     release_lock
     return 0
+  fi
+
+  if [ -n "$boot_id" ] && [ "$decision" = "bootloop" ]; then
+    if [ "$(get_state "action_taken_$boot_id")" = "1" ]; then
+      release_lock
+      return 0
+    fi
   fi
 
   log_info "系统健康，保存健康快照。 (Boot ID: $boot_id)"
@@ -101,41 +108,26 @@ get_suspect_modules() {
   done
 }
 
-handle_bootloop() {
-  acquire_lock
+mark_bootloop_decision() {
+  local boot_id="$1"
 
-  local boot_id_file="${MOCK_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}"
-  local boot_id
-  local decision
+  [ -n "$boot_id" ] || return 0
 
-  boot_id="$(cat "$boot_id_file" 2>/dev/null)"
-  decision="$(get_state "decision_$boot_id")"
-
-  if [ -n "$boot_id" ] && [ -n "$decision" ]; then
-    release_lock
-    return 0
+  if [ "$(get_state "boot_completed_seen_$boot_id")" = "1" ]; then
+    log_warn "检测到 boot-completed 已执行，取消 Bootloop 判定。"
+    return 1
   fi
 
-  if [ -n "$boot_id" ]; then
-    if [ "$(get_state "boot_completed_seen_$boot_id")" = "1" ]; then
-      log_warn "Service 超时，但检测到 boot-completed 已执行，取消 Bootloop 判定。"
-      release_lock
-      return 0
-    fi
-    _set_state_unlocked "decision_$boot_id" "bootloop"
-  fi
-
+  _set_state_unlocked "decision_$boot_id" "bootloop"
   _set_state_unlocked "last_health_status" "bootloop"
-
-  local attempts
-  attempts="$(get_state "boot_attempts")"
-  case "$attempts" in
-    ''|*[!0-9]*) attempts=1 ;;
-  esac
-
   _increment_state_unlocked "rescue_count" >/dev/null
 
-  log_error "检测到启动异常。当前异常启动次数: $attempts"
+  return 0
+}
+
+try_rescue_actions() {
+  local attempts="$1"
+  local mode="${2:-normal}"
 
   local targeted_threshold
   local broad_threshold
@@ -145,53 +137,119 @@ handle_bootloop() {
   broad_threshold="$(get_config BROAD_RECOVERY_THRESHOLD 4)"
   self_disable_threshold="$(get_config SELF_DISABLE_THRESHOLD 5)"
 
-  # 1. 精准禁用嫌疑模块与脚本
-  if [ "$attempts" -ge "$targeted_threshold" ] && [ "$attempts" -lt "$broad_threshold" ]; then
-    log_error "达到精准禁用阈值，正在识别并禁用嫌疑模块与脚本..."
+  local boot_id_file="${MOCK_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}"
+  local boot_id
+  boot_id="$(cat "$boot_id_file" 2>/dev/null)"
 
+  # 1. 自我禁用
+  if [ "$attempts" -ge "$self_disable_threshold" ] && [ "$(get_config ALLOW_SELF_DISABLE 1)" = "1" ]; then
+    touch "$MODDIR/disable"
+    log_error "达到自我禁用阈值，Brick Guardian Z 已自我禁用。"
+    _set_state_unlocked "last_action" "由于多次异常启动，Brick Guardian Z 已自我禁用。"
+    if [ -n "$boot_id" ]; then
+      _set_state_unlocked "action_taken_$boot_id" "1"
+      _set_state_unlocked "decision_$boot_id" "bootloop"
+    fi
+    _set_state_unlocked "last_health_status" "bootloop"
+    _increment_state_unlocked "rescue_count" >/dev/null
+    apply_recovery_and_reboot
+    return 0
+  fi
+
+  # 2. 大范围禁用
+  if [ "$attempts" -ge "$broad_threshold" ] && [ "$(get_config ALLOW_BROAD_DISABLE 1)" = "1" ]; then
+    log_error "达到大范围禁用阈值，准备禁用非白名单模块与脚本..."
     local disabled_any_module=0
     local disabled_any_script=0
 
-    # 精准禁用模块
-    local suspect_list="$MODDIR/state/suspect_modules.tsv"
-    local has_module_snap=0
-    if get_suspect_modules; then
-      has_module_snap=1
-      if [ -s "$suspect_list" ]; then
-        while IFS= read -r id; do
-          is_valid_module_id "$id" || continue
-          is_guardian_self "$id" && continue
+    if [ "$(get_config ALLOW_BROAD_MODULE_DISABLE 1)" = "1" ]; then
+      for dir in "$ADB_ROOT/modules"/*; do
+        [ -d "$dir" ] || continue
 
-          if ! is_whitelisted "$id"; then
-            touch "$ADB_ROOT/modules/$id/disable"
-            append_unique_line "$MODDIR/state/guardian_disabled_modules.list" "$id"
-            log_info "精准禁用嫌疑模块: $id"
-            disabled_any_module=1
-          else
-            log_info "嫌疑模块受白名单保护，跳过禁用: $id"
-          fi
-        done < "$suspect_list"
+        local id="${dir##*/}"
+
+        is_valid_module_id "$id" || continue
+        is_guardian_self "$id" && continue
+        [ -f "$dir/remove" ] && continue
+        [ -f "$dir/disable" ] && continue
+
+        if ! is_whitelisted "$id"; then
+          touch "$dir/disable"
+          append_unique_line "$MODDIR/state/guardian_disabled_modules.list" "$id"
+          log_info "大范围禁用: $id"
+          disabled_any_module=1
+        fi
+      done
+    fi
+
+    if [ "$(get_config ALLOW_BROAD_SCRIPT_DISABLE 1)" = "1" ]; then
+      if [ -f "$MODDIR/scripts/script_guard.sh" ]; then
+        . "$MODDIR/scripts/script_guard.sh"
+        if broad_disable_scripts; then
+          disabled_any_script=1
+        fi
       fi
     fi
 
-    # 精准禁用脚本
-    local has_script_snap=0
-    if [ -f "$MODDIR/scripts/script_guard.sh" ]; then
-      . "$MODDIR/scripts/script_guard.sh"
-      local suspect_scripts_file="$MODDIR/state/suspect_scripts.tsv"
-      if get_suspect_scripts; then
-        has_script_snap=1
-        if [ -s "$suspect_scripts_file" ]; then
-          while IFS= read -r relpath; do
-            is_valid_script_relpath "$relpath" || continue
-            if ! is_script_whitelisted "$relpath"; then
-              if disable_script_by_relpath "$relpath"; then
-                disabled_any_script=1
-              fi
+    if [ "$disabled_any_module" = "1" ] || [ "$disabled_any_script" = "1" ]; then
+      local act_msg="已执行大范围禁用。"
+      if [ "$disabled_any_module" = "1" ] && [ "$disabled_any_script" = "1" ]; then
+        act_msg="已执行大范围禁用模块与脚本。"
+      elif [ "$disabled_any_module" = "1" ]; then
+        act_msg="已执行大范围禁用模块。"
+      else
+        act_msg="已执行大范围禁用脚本。"
+      fi
+      _set_state_unlocked "last_action" "$act_msg"
+      if [ -n "$boot_id" ]; then
+        _set_state_unlocked "action_taken_$boot_id" "1"
+        _set_state_unlocked "decision_$boot_id" "bootloop"
+      fi
+      _set_state_unlocked "last_health_status" "bootloop"
+      _increment_state_unlocked "rescue_count" >/dev/null
+      apply_recovery_and_reboot
+      return 0
+    else
+      _set_state_unlocked "last_action" "达到大范围禁用阈值，但没有可禁用模块/脚本，已跳过重启。"
+      log_warn "达到大范围禁用阈值，但没有可禁用模块/脚本，跳过重启。"
+      return 1
+    fi
+  fi
+
+  # 3. 精准禁用
+  if [ "$attempts" -ge "$targeted_threshold" ]; then
+    log_error "达到精准禁用阈值，正在识别并禁用嫌疑模块与脚本..."
+    local disabled_any_module=0
+    local disabled_any_script=0
+    local has_module_snap=0
+
+    if [ "$(get_config ALLOW_TARGETED_MODULE_DISABLE 1)" = "1" ]; then
+      local suspect_list="$MODDIR/state/suspect_modules.tsv"
+      if get_suspect_modules; then
+        has_module_snap=1
+        if [ -s "$suspect_list" ]; then
+          while IFS= read -r id; do
+            is_valid_module_id "$id" || continue
+            is_guardian_self "$id" && continue
+
+            if ! is_whitelisted "$id"; then
+              touch "$ADB_ROOT/modules/$id/disable"
+              append_unique_line "$MODDIR/state/guardian_disabled_modules.list" "$id"
+              log_info "精准禁用嫌疑模块: $id"
+              disabled_any_module=1
             else
-              log_info "嫌疑脚本受白名单保护，跳过禁用: $relpath"
+              log_info "嫌疑模块受白名单保护，跳过禁用: $id"
             fi
-          done < "$suspect_scripts_file"
+          done < "$suspect_list"
+        fi
+      fi
+    fi
+
+    if [ "$(get_config ALLOW_TARGETED_SCRIPT_DISABLE 1)" = "1" ]; then
+      if [ -f "$MODDIR/scripts/script_guard.sh" ]; then
+        . "$MODDIR/scripts/script_guard.sh"
+        if targeted_disable_scripts; then
+          disabled_any_script=1
         fi
       fi
     fi
@@ -206,10 +264,17 @@ handle_bootloop() {
         act_msg="已禁用嫌疑脚本。"
       fi
       _set_state_unlocked "last_action" "$act_msg"
-      release_lock
+      if [ -n "$boot_id" ]; then
+        _set_state_unlocked "action_taken_$boot_id" "1"
+        _set_state_unlocked "decision_$boot_id" "bootloop"
+      fi
+      _set_state_unlocked "last_health_status" "bootloop"
+      _increment_state_unlocked "rescue_count" >/dev/null
       apply_recovery_and_reboot
       return 0
     else
+      local has_script_snap=0
+      [ -f "$MODDIR/state/good_scripts.tsv" ] && has_script_snap=1
       if [ "$has_module_snap" = "0" ] || [ "$has_script_snap" = "0" ]; then
         _set_state_unlocked "last_action" "缺少健康快照，无法精准识别嫌疑模块/脚本。"
         log_warn "缺少健康快照，无法精准识别嫌疑模块/脚本。"
@@ -217,68 +282,47 @@ handle_bootloop() {
         _set_state_unlocked "last_action" "已检查嫌疑模块与脚本，但没有可禁用项。"
         log_warn "已检查嫌疑模块与脚本，但没有可禁用项。"
       fi
+      return 1
     fi
   fi
 
-  # 2. 自我禁用
-  if [ "$attempts" -ge "$self_disable_threshold" ] && [ "$(get_config ALLOW_SELF_DISABLE 1)" = "1" ]; then
-    touch "$MODDIR/disable"
-    log_error "达到自我禁用阈值，Brick Guardian Z 已自我禁用。"
-    _set_state_unlocked "last_action" "由于多次异常启动，Brick Guardian Z 已自我禁用。"
+  return 1
+}
+
+handle_bootloop() {
+  acquire_lock
+
+  local boot_id_file="${MOCK_BOOT_ID_FILE:-/proc/sys/kernel/random/boot_id}"
+  local boot_id
+  local decision
+
+  boot_id="$(cat "$boot_id_file" 2>/dev/null)"
+  decision="$(get_state "decision_$boot_id")"
+
+  if [ -n "$boot_id" ] && [ "$decision" = "healthy" ]; then
     release_lock
-    apply_recovery_and_reboot
     return 0
   fi
 
-  # 3. 大范围禁用
-  if [ "$attempts" -ge "$broad_threshold" ] && [ "$(get_config ALLOW_BROAD_DISABLE 1)" = "1" ]; then
-    log_error "达到大范围禁用阈值，正在禁用所有非白名单模块与脚本。"
+  if [ -n "$boot_id" ] && [ "$decision" = "bootloop" ]; then
+    release_lock
+    return 0
+  fi
 
-    local disabled_any_module=0
-    local disabled_any_script=0
+  if ! mark_bootloop_decision "$boot_id"; then
+    release_lock
+    return 0
+  fi
 
-    for dir in "$ADB_ROOT/modules"/*; do
-      [ -d "$dir" ] || continue
+  local attempts
+  attempts="$(get_state "boot_attempts")"
+  attempts="$(normalize_positive_int "$attempts" 1)"
 
-      local id="${dir##*/}"
+  log_error "检测到启动异常。当前异常启动次数: $attempts"
 
-      is_valid_module_id "$id" || continue
-      is_guardian_self "$id" && continue
-      [ -f "$dir/remove" ] && continue
-      [ -f "$dir/disable" ] && continue
-
-      if ! is_whitelisted "$id"; then
-        touch "$dir/disable"
-        append_unique_line "$MODDIR/state/guardian_disabled_modules.list" "$id"
-        log_info "大范围禁用: $id"
-        disabled_any_module=1
-      fi
-    done
-
-    if [ -f "$MODDIR/scripts/script_guard.sh" ]; then
-      . "$MODDIR/scripts/script_guard.sh"
-      if broad_disable_scripts; then
-        disabled_any_script=1
-      fi
-    fi
-
-    if [ "$disabled_any_module" = "1" ] || [ "$disabled_any_script" = "1" ]; then
-      local act_msg="已执行大范围禁用。"
-      if [ "$disabled_any_module" = "1" ] && [ "$disabled_any_script" = "1" ]; then
-        act_msg="已执行大范围禁用模块与脚本。"
-      elif [ "$disabled_any_module" = "1" ]; then
-        act_msg="已执行大范围禁用模块。"
-      else
-        act_msg="已执行大范围禁用脚本。"
-      fi
-      _set_state_unlocked "last_action" "$act_msg"
-      release_lock
-      apply_recovery_and_reboot
-      return 0
-    else
-      _set_state_unlocked "last_action" "达到大范围禁用阈值，但没有可禁用模块/脚本，已跳过重启。"
-      log_warn "达到大范围禁用阈值，但没有可禁用模块/脚本，跳过重启。"
-    fi
+  if try_rescue_actions "$attempts" "service"; then
+    release_lock
+    return 0
   fi
 
   release_lock

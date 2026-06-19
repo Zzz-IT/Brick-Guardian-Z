@@ -24,6 +24,7 @@ get_suspect_scripts() {
 
     for fpath in "$dpath"/*; do
       [ -f "$fpath" ] || continue
+      [ -L "$fpath" ] && continue
       
       local fname="${fpath##*/}"
       local relpath="$sub/$fname"
@@ -63,14 +64,23 @@ get_suspect_scripts() {
 
 disable_script_by_relpath() {
   local relpath="$1"
+  local reason="${2:-targeted}"
   local fpath="$ADB_ROOT/$relpath"
-  if [ -f "$fpath" ]; then
-    chmod 0644 "$fpath"
-    append_unique_line "$MODDIR/state/guardian_disabled_scripts.list" "$relpath"
-    log_info "已禁用嫌疑脚本: $relpath"
-    return 0
-  fi
-  return 1
+
+  is_valid_script_relpath "$relpath" || return 1
+  [ -f "$fpath" ] || return 1
+  [ -L "$fpath" ] && return 1
+  is_script_whitelisted "$relpath" && return 2
+
+  chmod 0644 "$fpath" 2>/dev/null || return 1
+  append_unique_line "$MODDIR/state/guardian_disabled_scripts.list" "$relpath"
+
+  case "$reason" in
+    broad) log_info "大范围禁用脚本: $relpath" ;;
+    *) log_info "精准禁用嫌疑脚本: $relpath" ;;
+  esac
+
+  return 0
 }
 
 targeted_disable_scripts() {
@@ -82,7 +92,7 @@ targeted_disable_scripts() {
       while IFS= read -r relpath; do
         is_valid_script_relpath "$relpath" || continue
         if ! is_script_whitelisted "$relpath"; then
-          if disable_script_by_relpath "$relpath"; then
+          if disable_script_by_relpath "$relpath" "targeted"; then
             disabled_any=1
           fi
         else
@@ -106,6 +116,7 @@ broad_disable_scripts() {
 
     for fpath in "$dpath"/*; do
       [ -f "$fpath" ] || continue
+      [ -L "$fpath" ] && continue
       is_executable "$fpath" || continue
       
       local fname="${fpath##*/}"
@@ -113,7 +124,7 @@ broad_disable_scripts() {
       
       is_valid_script_relpath "$relpath" || continue
       if ! is_script_whitelisted "$relpath"; then
-        if disable_script_by_relpath "$relpath"; then
+        if disable_script_by_relpath "$relpath" "broad"; then
           disabled_any=1
         fi
       fi

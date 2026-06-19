@@ -27,6 +27,7 @@ export MOCK_GETPROP_INCREMENTAL="v1.0.0"
 # Configure Zygote monitoring parameters for quick test execution
 cat > "$MODDIR/config/default.conf" <<EOF
 ENABLED=1
+HEALTH_SAMPLE_INTERVAL_SEC=1
 ENABLE_ZYGOTE_MONITOR=1
 ZYGOTE_MONITOR_WINDOW_SEC=5
 ZYGOTE_MONITOR_INTERVAL_SEC=1

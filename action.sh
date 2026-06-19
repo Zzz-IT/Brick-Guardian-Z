@@ -50,6 +50,10 @@ else
   echo "- 异常启动次数: 0"
 fi
 
+boot_mode="$(cat "$MODDIR/state/boot_mode" 2>/dev/null)"
+[ -n "$boot_mode" ] || boot_mode="未知"
+echo "- 启动模式: $boot_mode"
+
 if [ -f "$MODDIR/state/last_action" ]; then
   echo "- 最后动作: $(cat "$MODDIR/state/last_action" 2>/dev/null)"
 else

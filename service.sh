@@ -20,19 +20,21 @@ MODDIR=${0%/*}
   stable="$(get_config HEALTH_STABLE_SAMPLES 3)"
   interval="$(get_config HEALTH_SAMPLE_INTERVAL_SEC 5)"
 
-  # 如果 zygote 反复重启，提前进入救砖判定
-  if monitor_zygote_unstable; then
-    log_error "检测到 zygote 反复重启且非 OTA 启动，提前进入救砖判定。"
-    handle_bootloop
-    exit 0
-  fi
+  wait_healthy_or_zygote_unstable "$timeout" "$stable" "$interval"
+  result="$?"
 
-  if wait_healthy "$timeout" "$stable" "$interval"; then
-    # 系统已健康，由统一回调函数处理，避免与 boot-completed 冲突
-    handle_healthy_boot
-  else
-    # 系统未能在超时时间内达到健康状态
-    log_error "系统未能达到健康状态，怀疑发生 Bootloop（启动卡死）。"
-    handle_bootloop
-  fi
+  case "$result" in
+    0)
+      handle_healthy_boot
+      ;;
+    2)
+      log_error "检测到 zygote 不稳定，提前进入救砖判定。"
+      _set_state_unlocked "last_action" "检测到 zygote 不稳定，提前进入救砖判定。"
+      handle_bootloop
+      ;;
+    *)
+      log_error "系统未能达到健康状态，怀疑发生 Bootloop（启动卡死）。"
+      handle_bootloop
+      ;;
+  esac
 ) &

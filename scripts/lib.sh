@@ -8,7 +8,7 @@ if [ -z "$MODDIR" ]; then
   MODDIR="$(dirname "$(dirname "$(readlink -f "$0")")")"
 fi
 
-LOG_MAX_BYTES="${LOG_MAX_BYTES:-32768}"
+LOG_MAX_BYTES="${LOG_MAX_BYTES:-65536}"
 LOG_MAX_BACKUPS="${LOG_MAX_BACKUPS:-1}"
 
 rotate_log() {
@@ -16,7 +16,7 @@ rotate_log() {
   local size
 
   case "$LOG_MAX_BYTES" in
-    ''|*[!0-9]*) LOG_MAX_BYTES=32768 ;;
+    ''|*[!0-9]*) LOG_MAX_BYTES=65536 ;;
   esac
 
   case "$LOG_MAX_BACKUPS" in
@@ -166,4 +166,15 @@ is_executable() {
     return 1
   fi
   [ -x "$fpath" ]
+}
+
+normalize_positive_int() {
+  local val="$1"
+  local def="$2"
+
+  case "$val" in
+    ''|*[!0-9]*) echo "$def" ;;
+    0) echo "$def" ;;
+    *) echo "$val" ;;
+  esac
 }
