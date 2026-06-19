@@ -12,6 +12,7 @@ is_healthy_once() {
   return 0
 }
 
+# Legacy/simple helper. Production path uses wait_healthy_or_zygote_unstable().
 wait_healthy() {
   local timeout="${1:-600}"
   local stable_samples="${2:-3}"

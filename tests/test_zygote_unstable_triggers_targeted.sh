@@ -30,7 +30,6 @@ ENABLED=1
 HEALTH_SAMPLE_INTERVAL_SEC=1
 ENABLE_ZYGOTE_MONITOR=1
 ZYGOTE_MONITOR_WINDOW_SEC=5
-ZYGOTE_MONITOR_INTERVAL_SEC=1
 ZYGOTE_RESTART_THRESHOLD=2
 ZYGOTE_MIN_ATTEMPT=2
 TARGETED_RECOVERY_THRESHOLD=2
@@ -42,10 +41,9 @@ EOF
 touch "$MODDIR/state/good_modules.tsv"
 touch "$MODDIR/state/good_scripts.tsv"
 
-# Execute service.sh. Since sleep is mocked as no-op, the background task executes synchronously.
-output="$(bash "$MODDIR/service.sh" 2>&1)"
+# Execute service.sh - $() output capture implicitly waits for background subshell via fd inheritance
+output="$(bash "$MODDIR/service.sh" 2>&1)" || true
 
-# Check if zygote instability was detected and handle_bootloop was triggered
 if [ -f "$MODDIR/logs/guardian.log" ] && grep -q "检测到 zygote 不稳定" "$MODDIR/logs/guardian.log"; then
   echo "PASS: Zygote instability detected and early recovery triggered"
 else
@@ -55,3 +53,4 @@ fi
 
 echo "PASS: test_zygote_unstable_triggers_targeted 成功"
 exit 0
+

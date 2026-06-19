@@ -2,11 +2,14 @@
 
 ## v1.2.0 (2026-06-19)
 
-- **早期救砖流程 (Early Rescue)**：对于普通启动异常（`boot_attempts >= 2`），在 `post-fs-data` 阶段直接触发精准/大范围禁用并重启，响应速度提升至数秒内。
-- **Zygote 不稳定早判**：`service.sh` 增加 Zygote 进程 PID 监控，60 秒内重启 >= 4 次且 `attempts >= 2` 时提前触发救砖，避免等待超时。
-- **系统 OTA 启动超时延长**：识别到系统 incremental 版本变更时，动态延长超时时间（最高 900 秒），并自动跳过早期救砖，确保 OTA 升级后的首次启动有充足时间。
-- **Shell 脚本快照保护**：全局脚本目录（`service.d`, `post-fs-data.d`, `post-mount.d`, `boot-completed.d`）纳入健康快照，发生异常时对嫌疑脚本或非白名单脚本执行 `chmod 0644` 降权禁用，支持脚本白名单。
-- **构建脚本适配 Windows**：`build_zip.sh` 增加了对 Windows `powershell.exe` `Compress-Archive` 的兼容，当本地未安装原生 `zip` 命令时仍可正常打包。
+- **早期救砖流程 (Early Rescue)**：对于普通启动异常（`boot_attempts >= 2`），在 `post-fs-data` 阶段直接触发精准/大范围禁用并重启，响应速度提升至数秒内。首次基线启动和 OTA-like 启动固定跳过。
+- **启动模式判定与动态超时**：根据 `first_baseline / ota_like / normal` 三种启动模式动态选择超时时间。默认值：普通 120 秒、首次基线 360 秒、OTA 初始 900 秒、OTA 后续 360 秒。
+- **Zygote 不稳定早判**：`service.sh` 增加 Zygote PID 监控，45 秒窗口内重启 >= 3 次且 `attempts >= 2` 时提前触发救砖。Zygote 检测与健康采样共用 `HEALTH_SAMPLE_INTERVAL_SEC`。
+- **Shell 脚本快照保护**：全局脚本目录（`service.d`, `post-fs-data.d`, `post-mount.d`, `boot-completed.d`）纳入健康快照，发生异常时对嫌疑脚本或非白名单脚本执行 `chmod 0644` 降权禁用，跳过 symlink，支持脚本白名单。
+- **超时 fallback 同步**：所有 `get_effective_boot_timeout` fallback 值与默认配置完全同步（120/360/900/360），配置缺失或非法时回退到正确值。
+- **阈值数值校验**：`post-fs-data.sh` 对 `TARGETED_RECOVERY_THRESHOLD` 增加 `normalize_positive_int` 校验，防止非法值导致 shell 比较错误。
+- **移除无效配置项**：移除 `ZYGOTE_MONITOR_INTERVAL_SEC`，该配置项不再独立生效。
+- **构建脚本适配 Windows**：`build_zip.sh` 增加了对 Windows `powershell.exe` `Compress-Archive` 的兼容。
 
 ## v1.1.0 (2026-06-18)
 
