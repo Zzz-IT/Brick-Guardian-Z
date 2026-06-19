@@ -17,10 +17,10 @@ _set_state_unlocked "boot_attempts" "1"
 
 timeout="$(get_effective_boot_timeout)"
 
-if [ "$timeout" -eq 180 ]; then
-  echo "PASS: normal boot timeout correctly set to 180"
+if [ "$timeout" -eq 120 ]; then
+  echo "PASS: normal boot timeout correctly set to 120"
 else
-  echo "FAIL: expected 180, got $timeout"
+  echo "FAIL: expected 120, got $timeout"
   exit 1
 fi
 

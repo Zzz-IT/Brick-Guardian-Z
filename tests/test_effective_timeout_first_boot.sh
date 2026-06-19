@@ -15,10 +15,10 @@ export MOCK_GETPROP_INCREMENTAL="v1.0.0"
 
 timeout="$(get_effective_boot_timeout)"
 
-if [ "$timeout" -eq 420 ]; then
-  echo "PASS: first boot timeout correctly set to 420"
+if [ "$timeout" -eq 360 ]; then
+  echo "PASS: first boot timeout correctly set to 360"
 else
-  echo "FAIL: expected 420, got $timeout"
+  echo "FAIL: expected 360, got $timeout"
   exit 1
 fi
 

@@ -21,10 +21,10 @@ timeout1="$(get_effective_boot_timeout)"
 _set_state_unlocked "boot_attempts" "2"
 timeout2="$(get_effective_boot_timeout)"
 
-if [ "$timeout1" -eq 900 ] && [ "$timeout2" -eq 420 ]; then
-  echo "PASS: OTA initial boot timeout is 900, rescue boot timeout is 420"
+if [ "$timeout1" -eq 900 ] && [ "$timeout2" -eq 360 ]; then
+  echo "PASS: OTA initial boot timeout is 900, rescue boot timeout is 360"
 else
-  echo "FAIL: expected 900 and 420, got $timeout1 and $timeout2"
+  echo "FAIL: expected 900 and 360, got $timeout1 and $timeout2"
   exit 1
 fi
 

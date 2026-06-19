@@ -21,20 +21,20 @@ EOF
 _set_state_unlocked "boot_attempts" "1"
 
 # 验证 get_effective_boot_timeout 能成功 fallback
-# 首次启动基线时，FIRST_BOOT_TIMEOUT_SEC=0 应 fallback 为 420
+# 首次启动基线时，FIRST_BOOT_TIMEOUT_SEC=0 应 fallback 为 360
 rm -f "$MODDIR/state/last_healthy_build_incremental"
 timeout="$(get_effective_boot_timeout)"
-if [ "$timeout" != "420" ]; then
-  echo "FAIL: 首次启动基线 timeout 非法值 fallback 失败，预期 420，实际 $timeout"
+if [ "$timeout" != "360" ]; then
+  echo "FAIL: 首次启动基线 timeout 非法值 fallback 失败，预期 360，实际 $timeout"
   exit 1
 fi
 
-# 正常启动时，BOOT_TIMEOUT_SEC=abc 应 fallback 为 180
+# 正常启动时，BOOT_TIMEOUT_SEC=abc 应 fallback 为 120
 _set_state_unlocked "last_healthy_build_incremental" "v1.0.0"
 export MOCK_GETPROP_INCREMENTAL="v1.0.0"
 timeout="$(get_effective_boot_timeout)"
-if [ "$timeout" != "180" ]; then
-  echo "FAIL: 正常启动 timeout 非法值 fallback 失败，预期 180，实际 $timeout"
+if [ "$timeout" != "120" ]; then
+  echo "FAIL: 正常启动 timeout 非法值 fallback 失败，预期 120，实际 $timeout"
   exit 1
 fi
 
