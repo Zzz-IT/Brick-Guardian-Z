@@ -116,6 +116,7 @@ echo ""
 echo "脚本保护:"
 echo "- 白名单脚本:"
 script_whitelist_conf="$MODDIR/config/script_whitelist.conf"
+script_whitelist_printed=0
 if [ -f "$script_whitelist_conf" ]; then
   while IFS= read -r line; do
     line="$(printf '%s' "$line" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
@@ -123,8 +124,12 @@ if [ -f "$script_whitelist_conf" ]; then
     case "$line" in \#*) continue ;; esac
     if is_valid_script_relpath "$line"; then
       echo "   $line"
+      script_whitelist_printed=1
     fi
   done < "$script_whitelist_conf"
+fi
+if [ "$script_whitelist_printed" = "0" ]; then
+  echo "   无"
 fi
 echo "- 最近异常禁用脚本:"
 tmp_disabled_scripts="$MODDIR/state/.action_disabled_scripts.tmp.$$"
